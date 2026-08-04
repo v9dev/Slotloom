@@ -17,11 +17,17 @@ export function BrandLogo({
     );
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-2.5 ${className}`}
+      className={`inline-flex min-w-0 shrink-0 items-center gap-2.5 ${className}`}
       aria-label={brand.name}
     >
-      <img src={brand.logo} alt="" className="h-8 w-auto max-w-40 object-contain dark:hidden" />
-      <img src={brand.logoDark} alt="" className="hidden h-8 w-auto max-w-40 object-contain dark:block" />
+      <img
+        src={brand.favicon}
+        alt=""
+        className="size-8 shrink-0 rounded-[0.6rem] object-contain shadow-sm"
+      />
+      <span className="truncate text-xl font-semibold leading-none tracking-[-0.035em] text-foreground">
+        {brand.name}
+      </span>
     </span>
   );
 }
