@@ -17,8 +17,10 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
     "dev:api": "wrangler dev --local",
+    "dev:setup": "node scripts/setup-dev-env.mjs",
     "build": "tsc -b && vite build",
     "check:structure": "node scripts/check-file-size.mjs",
     "deploy:api": "wrangler deploy",

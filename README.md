@@ -53,15 +53,16 @@ cp .dev.vars.example .dev.vars
 pnpm db:migrate:local
 ```
 
-Replace the local `ADMIN_TOKEN` in `.dev.vars`, then run:
+Prepare `.dev.vars`, replace its generated `ADMIN_TOKEN` with a private value, then start both the Worker and Vite:
 
 ```sh
-# Terminal 1
-pnpm dev:api
-
-# Terminal 2
+pnpm dev:setup
 pnpm dev
 ```
+
+`pnpm dev` starts both services. Vite runs on `http://localhost:5173` and proxies `/api` plus notification WebSockets to the local Worker on port `8787`. Running Vite alone makes the UI appear but leaves API calls unavailable.
+
+If startup says port `5173` or `8787` is already in use, stop the older development process before retrying. Slotloom intentionally does not move to another port because `APP_URL` and email links must match the frontend origin.
 
 Open `http://localhost:5173/admin`. Create the first booking link from the dashboard.
 
@@ -104,7 +105,9 @@ Set these in the Pages project for both production and previews where appropriat
 |---|---|
 | `BACKEND_URL` | Deployed Worker origin, such as `https://example-slotloom-api.account.workers.dev`. |
 | `VITE_APP_NAME` | Build-time fallback name shown before runtime branding loads. |
-| `VITE_BRAND_MARK` | Build-time fallback mark path. |
+| `VITE_BRAND_LOGO` | Build-time fallback logo for light backgrounds. |
+| `VITE_BRAND_LOGO_DARK` | Build-time fallback logo for dark backgrounds. |
+| `VITE_BRAND_FAVICON` | Build-time fallback favicon. |
 
 Branding can subsequently be changed by an owner from **Settings → Workspace branding** without rebuilding the frontend.
 

@@ -8,6 +8,7 @@ APP_URL=http://localhost:5173
 TIME_ZONE=UTC
 DAYS_AHEAD=14
 SLOT_TIMES=10:00,14:00
-TEAM_DOMAIN=https://your-team.cloudflareaccess.com
-POLICY_AUD=replace-with-access-audience-tag
+# Cloudflare Access is not required locally. Configure these in production.
+TEAM_DOMAIN=
+POLICY_AUD=
 TURNSTILE_SITE_KEY=
