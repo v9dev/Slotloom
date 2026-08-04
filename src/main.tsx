@@ -14,8 +14,12 @@ async function loadBranding() {
     if (!response.ok) return;
     const value = (await response.json()) as {
       name?: string;
-      mark?: string;
+      logo?: string;
+      logoDark?: string;
+      favicon?: string;
       tagline?: string;
+      primaryColor?: string;
+      accentColor?: string;
     };
     applyBranding(value);
   } catch {
@@ -25,7 +29,7 @@ async function loadBranding() {
 
 await loadBranding();
 document.title = brand.name;
-document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute("href", brand.mark);
+document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute("href", brand.favicon);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

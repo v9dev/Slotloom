@@ -11,6 +11,7 @@ import {
   Copy,
   Download,
   FileText,
+  ImageUp,
   LayoutDashboard,
   Link2,
   Loader2,
@@ -145,7 +146,12 @@ export function WorkspaceSettings() {
   const [days, setDays] = useState(365);
   const [appName, setAppName] = useState("Slotloom");
   const [brandTagline, setBrandTagline] = useState("Scheduling, without the overhead.");
-  const [brandMarkUrl, setBrandMarkUrl] = useState("/brand/mark.svg");
+  const [brandLogoUrl, setBrandLogoUrl] = useState("/brand/logo-light.svg");
+  const [brandLogoDarkUrl, setBrandLogoDarkUrl] = useState("/brand/logo-dark.svg");
+  const [brandFaviconUrl, setBrandFaviconUrl] = useState("/brand/mark.svg");
+  const [brandPrimaryColor, setBrandPrimaryColor] = useState("#2563eb");
+  const [brandAccentColor, setBrandAccentColor] = useState("#7c3aed");
+  const [uploading, setUploading] = useState<"logo" | "logo-dark" | "favicon" | null>(null);
   useEffect(() => {
     api
       .settings()
@@ -153,7 +159,11 @@ export function WorkspaceSettings() {
         setDays(Number(result.settings.data_retention_days || 365));
         setAppName(result.settings.app_name || "Slotloom");
         setBrandTagline(result.settings.brand_tagline || "Scheduling, without the overhead.");
-        setBrandMarkUrl(result.settings.brand_mark_url || "/brand/mark.svg");
+        setBrandLogoUrl(result.settings.brand_logo_url || result.settings.brand_mark_url || "/brand/logo-light.svg");
+        setBrandLogoDarkUrl(result.settings.brand_logo_dark_url || result.settings.brand_logo_url || "/brand/logo-dark.svg");
+        setBrandFaviconUrl(result.settings.brand_favicon_url || result.settings.brand_mark_url || "/brand/mark.svg");
+        setBrandPrimaryColor(result.settings.brand_primary_color || "#2563eb");
+        setBrandAccentColor(result.settings.brand_accent_color || "#7c3aed");
       });
   }, []);
   async function save() {
@@ -161,10 +171,29 @@ export function WorkspaceSettings() {
       dataRetentionDays: days,
       appName,
       brandTagline,
-      brandMarkUrl,
+      brandLogoUrl,
+      brandLogoDarkUrl,
+      brandFaviconUrl,
+      brandPrimaryColor,
+      brandAccentColor,
     });
     toast.success("Workspace settings updated");
     window.setTimeout(() => location.reload(), 500);
+  }
+  async function uploadAsset(kind: "logo" | "logo-dark" | "favicon", file?: File) {
+    if (!file) return;
+    setUploading(kind);
+    try {
+      const url = await api.uploadBrandAsset(kind, file);
+      if (kind === "logo") setBrandLogoUrl(url);
+      else if (kind === "logo-dark") setBrandLogoDarkUrl(url);
+      else setBrandFaviconUrl(url);
+      toast.success(`${kind === "favicon" ? "Favicon" : "Logo"} uploaded. Save to publish it.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(null);
+    }
   }
   return (
     <Shell
@@ -182,23 +211,52 @@ export function WorkspaceSettings() {
               White-label the dashboard, public booking pages, browser title, favicon, and outgoing emails.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <CardContent className="space-y-6">
+            <div className="grid gap-5 md:grid-cols-2">
             <Field label="Application name">
               <Input value={appName} maxLength={80} onChange={(event) => setAppName(event.target.value)} />
             </Field>
             <Field label="Tagline">
               <Input value={brandTagline} maxLength={160} onChange={(event) => setBrandTagline(event.target.value)} />
             </Field>
-            <div className="row-span-2 flex size-20 items-center justify-center rounded-2xl border bg-muted/30 p-3">
-              <img src={brandMarkUrl || "/brand/mark.svg"} alt="Brand preview" className="max-h-full max-w-full object-contain" />
             </div>
-            <div className="md:col-span-2">
-              <Field label="Brand mark URL">
-                <Input value={brandMarkUrl} maxLength={500} placeholder="/brand/mark.svg or https://…" onChange={(event) => setBrandMarkUrl(event.target.value)} />
+            <div className="grid gap-4 md:grid-cols-3">
+              {(["logo", "logo-dark", "favicon"] as const).map((kind) => {
+                const value = kind === "logo" ? brandLogoUrl : kind === "logo-dark" ? brandLogoDarkUrl : brandFaviconUrl;
+                const setValue = kind === "logo" ? setBrandLogoUrl : kind === "logo-dark" ? setBrandLogoDarkUrl : setBrandFaviconUrl;
+                const label = kind === "logo" ? "Logo for light theme" : kind === "logo-dark" ? "Logo for dark theme" : "Browser favicon";
+                return <div key={kind} className="rounded-xl border bg-muted/20 p-4">
+                  <div className={`mb-4 flex h-20 items-center justify-center rounded-lg border p-3 ${kind === "logo-dark" ? "bg-neutral-950" : "bg-white"}`}>
+                    <img src={value} alt={`${kind} preview`} className={kind === "favicon" ? "size-12 rounded-xl object-contain" : "max-h-12 max-w-full object-contain"} />
+                  </div>
+                  <Field label={label}>
+                    <Input value={value} maxLength={500} onChange={(event) => setValue(event.target.value)} />
+                  </Field>
+                  <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium shadow-xs hover:bg-accent">
+                    {uploading === kind ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
+                    Upload {kind}
+                    <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.ico" disabled={uploading !== null} onChange={(event) => void uploadAsset(kind, event.target.files?.[0])} />
+                  </label>
+                </div>;
+              })}
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field label="Primary brand color">
+                <div className="flex gap-2"><Input type="color" className="w-14 p-1" value={brandPrimaryColor} onChange={(event) => setBrandPrimaryColor(event.target.value)} /><Input value={brandPrimaryColor} maxLength={7} onChange={(event) => setBrandPrimaryColor(event.target.value)} /></div>
               </Field>
-              <p className="mt-2 text-xs text-muted-foreground">Use a file from public/brand or an absolute HTTPS image URL.</p>
+              <Field label="Accent color">
+                <div className="flex gap-2"><Input type="color" className="w-14 p-1" value={brandAccentColor} onChange={(event) => setBrandAccentColor(event.target.value)} /><Input value={brandAccentColor} maxLength={7} onChange={(event) => setBrandAccentColor(event.target.value)} /></div>
+              </Field>
             </div>
-            <Button className="md:col-span-3 md:justify-self-start" onClick={save}>Save workspace settings</Button>
+            <div className="rounded-xl border p-4" style={{ borderColor: `${brandPrimaryColor}66` }}>
+              <p className="text-sm font-medium">Live brand preview</p>
+              <div className="mt-3 flex items-center justify-between gap-4 rounded-lg bg-muted/30 p-4">
+                <img src={brandLogoUrl} alt="Workspace logo preview" className="h-9 max-w-48 object-contain" />
+                <span className="rounded-full px-3 py-1 text-xs font-medium text-white" style={{ background: `linear-gradient(135deg, ${brandPrimaryColor}, ${brandAccentColor})` }}>Brand accent</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">PNG, JPEG, WebP, SVG, and ICO are supported up to 2 MB. URLs remain available for externally hosted assets.</p>
+            <Button onClick={save}>Save and publish branding</Button>
           </CardContent>
         </Card>
         <Card>
