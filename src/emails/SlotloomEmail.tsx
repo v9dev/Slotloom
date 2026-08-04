@@ -20,6 +20,8 @@ export type SlotloomEmailProps = {
   message: string;
   appName: string;
   logoUrl: string;
+  primaryColor?: string;
+  accentColor?: string;
   contact: string;
   actionUrl?: string;
   actionLabel?: string;
@@ -36,6 +38,8 @@ export function SlotloomEmail({
   message,
   appName,
   logoUrl,
+  primaryColor = "#2563eb",
+  accentColor = "#7c3aed",
   contact,
   actionUrl,
   actionLabel = "View meeting",
@@ -56,12 +60,11 @@ export function SlotloomEmail({
       <Preview>{preview}</Preview>
       <Body style={styles.body} className="email-body">
         <Container style={styles.container} className="email-card">
-          <Section style={styles.accent} />
+          <Section style={{ ...styles.accent, backgroundColor: primaryColor }} />
           <Section style={styles.brand}>
-            <Img src={logoUrl} width="40" height="40" alt="" style={styles.logo} />
-            <Text style={styles.brandName} className="email-title">{appName}</Text>
+            <Img src={logoUrl} width="140" alt={appName} style={styles.logo} />
           </Section>
-          <Text style={styles.eyebrow}>{label}</Text>
+          <Text style={{ ...styles.eyebrow, color: accentColor }}>{label}</Text>
           <Heading style={styles.heading} className="email-title">{heading}</Heading>
           {paragraphs.map((paragraph, index) => (
             <Text key={index} style={styles.copy} className="email-copy">
@@ -82,7 +85,7 @@ export function SlotloomEmail({
           ) : null}
           {actionUrl ? (
             <Section style={styles.action}>
-              <Button href={actionUrl} style={styles.button} className="email-button">
+              <Button href={actionUrl} style={{ ...styles.button, backgroundColor: primaryColor }} className="email-button">
                 {actionLabel}
               </Button>
             </Section>
@@ -110,8 +113,7 @@ const styles = {
   container: { backgroundColor: "#ffffff", border: "1px solid #e4e4e7", borderRadius: "16px", margin: "0 auto", maxWidth: "560px", overflow: "hidden", padding: "0 36px 32px" },
   accent: { backgroundColor: "#3b82f6", borderRadius: "0 0 8px 8px", height: "5px", margin: "0 0 30px" },
   brand: { marginBottom: "32px" },
-  logo: { borderRadius: "10px", display: "inline-block", verticalAlign: "middle" },
-  brandName: { display: "inline-block", fontSize: "17px", fontWeight: 700, margin: "0 0 0 10px", verticalAlign: "middle" },
+  logo: { display: "block", height: "auto", maxWidth: "140px" },
   eyebrow: { color: "#7c3aed", fontSize: "14px", fontWeight: 700, lineHeight: "20px", margin: "0 0 8px" },
   heading: { fontSize: "26px", lineHeight: "34px", margin: "0 0 22px" },
   copy: { color: "#52525b", fontSize: "15px", lineHeight: "24px", margin: "0 0 16px", whiteSpace: "pre-line" as const },

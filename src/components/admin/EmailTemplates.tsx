@@ -183,7 +183,9 @@ export function EmailTemplates({ canManage }: { canManage: boolean }) {
           label={presentation.label}
           message={message}
           appName={brand.name}
-          logoUrl={`${window.location.origin}${brand.mark}`}
+          logoUrl={new URL(brand.logo, window.location.origin).toString()}
+          primaryColor={brand.primaryColor}
+          accentColor={brand.accentColor}
           contact="{{contact}}"
           actionUrl={hasAction ? "#" : undefined}
           actionLabel={presentation.actionLabel}

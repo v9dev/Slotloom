@@ -37,6 +37,7 @@ import {
   saveRules,
   submitFeedback,
 } from "./public-routes";
+import { serveBrandAsset, uploadBrandAsset } from "./brand-assets";
 export async function adminRoutes(
   request: Request,
   env: Env,
@@ -222,15 +223,23 @@ export async function adminRoutes(
       .json<Record<string, unknown>>()
       .catch(() => ({}) as Record<string, unknown>);
     const retention = safeNumber(body.dataRetentionDays, 365, 30, 3650);
-    const rawBrandMark = safeText(body.brandMarkUrl, 500);
-    const brandMark = rawBrandMark.startsWith("/") || /^https:\/\//i.test(rawBrandMark)
-      ? rawBrandMark
-      : "/brand/mark.svg";
+    const safeAssetUrl = (value: unknown, fallback: string) => {
+      const url = safeText(value, 500);
+      return url.startsWith("/") || /^https:\/\//i.test(url) ? url : fallback;
+    };
+    const safeColor = (value: unknown, fallback: string) => {
+      const color = safeText(value, 7);
+      return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+    };
     const settings = [
       ["data_retention_days", String(retention)],
       ["app_name", safeText(body.appName, 80) || env.APP_NAME],
       ["brand_tagline", safeText(body.brandTagline, 160)],
-      ["brand_mark_url", brandMark],
+      ["brand_logo_url", safeAssetUrl(body.brandLogoUrl, "/brand/logo-light.svg")],
+      ["brand_logo_dark_url", safeAssetUrl(body.brandLogoDarkUrl, "/brand/logo-dark.svg")],
+      ["brand_favicon_url", safeAssetUrl(body.brandFaviconUrl, "/brand/mark.svg")],
+      ["brand_primary_color", safeColor(body.brandPrimaryColor, "#2563eb")],
+      ["brand_accent_color", safeColor(body.brandAccentColor, "#7c3aed")],
     ];
     const updatedAt = new Date().toISOString();
     await env.DB.batch(
@@ -241,6 +250,12 @@ export async function adminRoutes(
       ),
     );
     return json({ success: true });
+  }
+  const brandUpload = path.match(/^\/api\/admin\/brand-assets\/(logo|logo-dark|favicon)$/);
+  if (brandUpload && request.method === "POST") {
+    if (!can(user.role, "manage_team"))
+      return json({ error: "Only owners can change workspace branding." }, 403);
+    return uploadBrandAsset(request, env, brandUpload[1], actor);
   }
   if (path === "/api/admin/users" && request.method === "GET") {
     if (!can(user.role, "manage_team"))
@@ -953,6 +968,10 @@ export default {
       if (path === "/api/public/brand" && request.method === "GET") {
         const workspaceBrand = await getWorkspaceBrand(env);
         return json(workspaceBrand);
+      }
+      const brandAsset = path.match(/^\/api\/public\/brand-assets\/(.+)$/);
+      if (brandAsset && request.method === "GET") {
+        return serveBrandAsset(env, brandAsset[1]);
       }
       if (path === "/api/bookings" && request.method === "POST")
         return publicLink(request, env, "consultation");

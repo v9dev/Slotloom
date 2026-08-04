@@ -10,7 +10,7 @@ export function BrandLogo({
   if (compact)
     return (
       <img
-        src={brand.mark}
+        src={brand.favicon}
         alt={brand.name}
         className={`size-9 rounded-xl object-contain ${className}`}
       />
@@ -20,14 +20,8 @@ export function BrandLogo({
       className={`inline-flex shrink-0 items-center gap-2.5 ${className}`}
       aria-label={brand.name}
     >
-      <img
-        src={brand.mark}
-        alt=""
-        className="size-8 rounded-lg object-contain"
-      />
-      <span className="text-[1.25rem] font-bold leading-none tracking-[-0.04em] text-foreground">
-        {brand.name}
-      </span>
+      <img src={brand.logo} alt="" className="h-8 w-auto max-w-40 object-contain dark:hidden" />
+      <img src={brand.logoDark} alt="" className="hidden h-8 w-auto max-w-40 object-contain dark:block" />
     </span>
   );
 }

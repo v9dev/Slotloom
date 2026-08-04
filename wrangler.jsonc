@@ -12,6 +12,12 @@
       "migrations_dir": "migrations",
     },
   ],
+  "r2_buckets": [
+    {
+      "binding": "BRAND_ASSETS",
+      "bucket_name": "example-slotloom-assets"
+    }
+  ],
   "send_email": [
     {
       "name": "EMAIL",

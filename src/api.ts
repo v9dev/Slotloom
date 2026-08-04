@@ -40,6 +40,19 @@ async function download(path: string) {
   if (!response.ok) throw new Error("Could not download the export.");
   return response.blob();
 }
+async function upload(path: string, file: File) {
+  const token = localToken();
+  const data = new FormData();
+  data.append("file", file);
+  const response = await fetch(path, {
+    method: "POST",
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: data,
+  });
+  const body = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!response.ok || !body.url) throw new Error(body.error || "Upload failed.");
+  return body.url;
+}
 export const api = {
   publicLink: (slug: string) =>
     request<{
@@ -220,12 +233,18 @@ export const api = {
     dataRetentionDays: number;
     appName: string;
     brandTagline: string;
-    brandMarkUrl: string;
+    brandLogoUrl: string;
+    brandLogoDarkUrl: string;
+    brandFaviconUrl: string;
+    brandPrimaryColor: string;
+    brandAccentColor: string;
   }) =>
     request<{ success: boolean }>("/api/admin/settings", {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  uploadBrandAsset: (kind: "logo" | "logo-dark" | "favicon", file: File) =>
+    upload(`/api/admin/brand-assets/${kind}`, file),
   manageBooking: (token: string) =>
     request<{
       booking: Booking;

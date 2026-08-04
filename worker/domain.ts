@@ -6,6 +6,7 @@ import { presentationFor } from "../src/emails/presentation";
 
 export interface Env {
   DB: D1Database;
+  BRAND_ASSETS?: R2Bucket;
   NOTIFICATION_HUB?: DurableObjectNamespace;
   EMAIL?: { send(message: MailMessage): Promise<{ messageId: string }> };
   ADMIN_TOKEN: string;
@@ -38,11 +39,19 @@ export type MailMessage = {
     disposition: "attachment" | "inline";
   }>;
 };
-export type WorkspaceBrand = { name: string; tagline: string; mark: string };
+export type WorkspaceBrand = {
+  name: string;
+  tagline: string;
+  logo: string;
+  logoDark: string;
+  favicon: string;
+  primaryColor: string;
+  accentColor: string;
+};
 
 export async function getWorkspaceBrand(env: Env): Promise<WorkspaceBrand> {
   const rows = await env.DB.prepare(
-    "SELECT setting_key,setting_value FROM workspace_settings WHERE setting_key IN ('app_name','brand_tagline','brand_mark_url')",
+    "SELECT setting_key,setting_value FROM workspace_settings WHERE setting_key IN ('app_name','brand_tagline','brand_logo_url','brand_logo_dark_url','brand_favicon_url','brand_mark_url','brand_primary_color','brand_accent_color')",
   ).all<{ setting_key: string; setting_value: string }>();
   const values = Object.fromEntries(
     rows.results.map((row) => [row.setting_key, row.setting_value]),
@@ -50,7 +59,11 @@ export async function getWorkspaceBrand(env: Env): Promise<WorkspaceBrand> {
   return {
     name: values.app_name || env.APP_NAME,
     tagline: values.brand_tagline || "Scheduling, without the overhead.",
-    mark: values.brand_mark_url || "/brand/mark.svg",
+    logo: values.brand_logo_url || values.brand_mark_url || "/brand/logo-light.svg",
+    logoDark: values.brand_logo_dark_url || values.brand_logo_url || "/brand/logo-dark.svg",
+    favicon: values.brand_favicon_url || values.brand_mark_url || "/brand/mark.svg",
+    primaryColor: values.brand_primary_color || "#2563eb",
+    accentColor: values.brand_accent_color || "#7c3aed",
   };
 }
 export type WorkflowStatus =
@@ -792,9 +805,11 @@ export async function renderEmailHtml(
       message: text,
       appName: workspaceBrand?.name || env.APP_NAME,
       logoUrl: new URL(
-        workspaceBrand?.mark || "/brand/mark.svg",
+        workspaceBrand?.logo || "/brand/logo-light.svg",
         `${env.APP_URL.replace(/\/$/, "")}/`,
       ).toString(),
+      primaryColor: workspaceBrand?.primaryColor,
+      accentColor: workspaceBrand?.accentColor,
       contact,
       actionUrl: actionUrl || undefined,
       actionLabel: presentation.actionLabel,

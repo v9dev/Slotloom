@@ -32,7 +32,7 @@ Browser
           └── Email Sending: confirmations and follow-ups
 ```
 
-R2, KV, Queues, Firebase, and a traditional server are not required.
+KV, Queues, Firebase, and a traditional server are not required. R2 is used only for logo and favicon uploads; externally hosted asset URLs can be used instead.
 
 ## Technology
 
@@ -168,12 +168,23 @@ The Pages proxy forwards the Access assertion to the Worker. The Worker verifies
 
 ## White-labeling
 
-An owner can configure the application name, tagline and brand mark from the UI. A mark may be:
+An owner can configure the complete workspace identity from **Settings → Workspace branding**:
 
-- a file under `public/brand`, such as `/brand/mark.svg`
-- an absolute HTTPS image URL
+- application name and tagline
+- a full workspace logo
+- a separate square favicon
+- primary and accent colors
+- direct image uploads or externally hosted HTTPS URLs
 
-The saved identity is used by the dashboard, booking flow, browser metadata, email templates and calendar invitations. Forks can replace the default assets under `public/brand` before deployment.
+Uploaded images are stored in the `example-slotloom-assets` R2 bucket. Create it before enabling uploads:
+
+```sh
+pnpm exec wrangler r2 bucket create example-slotloom-assets
+```
+
+The public brand configuration is loaded at runtime, so changing a client workspace does not require rebuilding Pages. The identity is used by the login screen, dashboard, booking flow, browser metadata, emails and calendar invitations.
+
+The current open-source distribution represents one isolated workspace per deployment. This gives each organization its own D1 database, assets, domain and branding. A shared multi-tenant hosted service additionally requires tenant IDs and isolation across every database query; do not place unrelated customers in one deployment until that isolation layer is enabled.
 
 ## Quality checks
 
