@@ -315,10 +315,10 @@ function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
   ];
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-3">
-      <div className="flex h-14 items-center px-2">
+      <div className="flex h-12 items-center px-3">
         <BrandLogo />
       </div>
-      <nav className="mt-5 space-y-1">
+      <nav className="mt-3 space-y-1">
         {items.map((item) => (
           <Button
             key={item.id}
