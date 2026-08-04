@@ -248,11 +248,12 @@ export function WorkspaceSettings() {
                 <div className="flex gap-2"><Input type="color" className="w-14 p-1" value={brandAccentColor} onChange={(event) => setBrandAccentColor(event.target.value)} /><Input value={brandAccentColor} maxLength={7} onChange={(event) => setBrandAccentColor(event.target.value)} /></div>
               </Field>
             </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: `${brandPrimaryColor}66` }}>
+            <div className="rounded-xl border bg-card p-4 text-card-foreground" style={{ borderColor: `${brandPrimaryColor}66` }}>
               <p className="text-sm font-medium">Live brand preview</p>
-              <div className="mt-3 flex items-center justify-between gap-4 rounded-lg bg-muted/30 p-4">
-                <img src={brandLogoUrl} alt="Workspace logo preview" className="h-9 max-w-48 object-contain" />
-                <span className="rounded-full px-3 py-1 text-xs font-medium text-white" style={{ background: `linear-gradient(135deg, ${brandPrimaryColor}, ${brandAccentColor})` }}>Brand accent</span>
+              <div className="mt-3 flex min-h-20 items-center justify-between gap-4 rounded-lg border bg-background p-4 text-foreground">
+                <img src={brandLogoUrl} alt="Workspace logo preview" className="h-9 max-w-48 object-contain dark:hidden" />
+                <img src={brandLogoDarkUrl} alt="Workspace logo preview" className="hidden h-9 max-w-48 object-contain dark:block" />
+                <span className="shrink-0 rounded-full px-3 py-1 text-xs font-medium text-white" style={{ background: `linear-gradient(135deg, ${brandPrimaryColor}, ${brandAccentColor})` }}>Brand accent</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">PNG, JPEG, WebP, SVG, and ICO are supported up to 2 MB. URLs remain available for externally hosted assets.</p>
