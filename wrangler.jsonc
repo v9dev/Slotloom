@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "slotloom-api",
+  "keep_vars": true,
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-04",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "slotloom-db",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NOTIFICATION_HUB",
+        "class_name": "NotificationHub"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "notification-hub-v1",
+      "new_sqlite_classes": ["NotificationHub"]
+    }
+  ],
+  "triggers": { "crons": ["17 2 * * *"] },
+  "observability": { "enabled": true },
+}

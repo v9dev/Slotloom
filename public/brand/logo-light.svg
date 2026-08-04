@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 370 128" role="img" aria-labelledby="title">
+  <title id="title">Slotloom</title>
+  <g>
+    <rect width="128" height="128" rx="30" fill="#18181b"/>
+    <path d="M32 38h64M32 64h64M32 90h64" fill="none" stroke="#f4f4f5" stroke-width="8" stroke-linecap="round"/>
+    <path d="M47 27v74M81 27v74" fill="none" stroke="#3b82f6" stroke-width="7" stroke-linecap="round"/>
+    <path d="M47 42c0 11 34 11 34 22S47 75 47 86" fill="none" stroke="#8b5cf6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="150" y="84" fill="#18181b" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="52" font-weight="700" letter-spacing="-2">Slotloom</text>
+</svg>
