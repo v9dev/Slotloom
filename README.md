@@ -16,7 +16,7 @@ Slotloom is an open-source, white-label availability and meeting follow-up platf
 - Secure visitor cancellation, rescheduling, and feedback links
 - Real-time dashboard notifications using hibernating WebSockets
 - D1 audit history, retention controls, and privacy-safe deletion
-- UI-managed white-label name, tagline, mark, favicon, and email identity
+- UI-managed white-label name, tagline, light/dark logos, favicon, colors, and email identity
 - Cloudflare Access authentication and optional Turnstile protection
 
 ## Architecture
@@ -28,6 +28,7 @@ Browser
   │
   └── Cloudflare Worker: API, permissions, scheduling and email
           ├── D1: application data and notification history
+          ├── R2: uploaded workspace logos and favicons
           ├── Durable Object: live notification connections
           └── Email Sending: confirmations and follow-ups
 ```
