@@ -234,10 +234,10 @@ export default function Admin() {
   const canEditRequests = user.role !== "viewer";
   const nav = <Nav section={section} user={user} />;
   return (
-    <div className="min-h-svh bg-muted/30 lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="hidden border-r bg-background lg:block">{nav}</aside>
-      <div className="min-w-0">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur lg:justify-end lg:px-6">
+    <div className="h-svh overflow-hidden bg-muted/30 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+      <aside className="hidden h-svh overflow-hidden border-r bg-background lg:block">{nav}</aside>
+      <div className="flex h-svh min-w-0 flex-col overflow-hidden">
+        <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur lg:justify-end lg:px-6">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden">
@@ -251,6 +251,7 @@ export default function Admin() {
           <BrandLogo className="flex-1 lg:hidden" />
           <Notifications />
         </header>
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <Suspense fallback={<Loader2 className="mx-auto mt-20 animate-spin" />}>
           {section === "overview" ? (
             <Overview canManageLinks={canManageLinks} />
@@ -268,6 +269,7 @@ export default function Admin() {
             <Team />
           )}
         </Suspense>
+        </main>
       </div>
     </div>
   );
@@ -312,7 +314,7 @@ function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
       : []),
   ];
   return (
-    <div className="flex h-svh flex-col p-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-3">
       <div className="flex h-14 items-center px-2">
         <BrandLogo />
       </div>
