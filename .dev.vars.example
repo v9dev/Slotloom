@@ -1,0 +1,13 @@
+ADMIN_TOKEN=replace-with-a-long-random-value
+ALLOW_ADMIN_TOKEN=true
+BOOTSTRAP_OWNER_EMAIL=local-development
+APP_NAME=Slotloom
+ORGANIZER_EMAIL=owner@example.com
+FROM_EMAIL=Meetings <meetings@example.com>
+APP_URL=http://localhost:5173
+TIME_ZONE=UTC
+DAYS_AHEAD=14
+SLOT_TIMES=10:00,14:00
+TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+POLICY_AUD=replace-with-access-audience-tag
+TURNSTILE_SITE_KEY=
