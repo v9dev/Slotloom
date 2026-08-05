@@ -5,6 +5,7 @@ import { SlotloomEmail } from "../src/emails/SlotloomEmail";
 import { presentationFor } from "../src/emails/presentation";
 
 const DEFAULT_APP_NAME = "Slotloom";
+const DEFAULT_TAGLINE = "Scheduling, without the overhead.";
 
 export interface Env {
   DB: D1Database;
@@ -45,6 +46,11 @@ export type WorkspaceBrand = {
   accentColor: string;
 };
 
+export function slotloomSender(value: string) {
+  const address = value.trim().match(/<\s*([^<>]+)\s*>$/)?.[1] || value.trim();
+  return { email: address, name: DEFAULT_APP_NAME };
+}
+
 export async function getWorkspaceBrand(env: Env): Promise<WorkspaceBrand> {
   const rows = await env.DB.prepare(
     "SELECT setting_key,setting_value FROM workspace_settings WHERE setting_key IN ('app_name','brand_tagline','brand_logo_url','brand_logo_dark_url','brand_favicon_url','brand_mark_url','brand_primary_color','brand_accent_color')",
@@ -54,7 +60,7 @@ export async function getWorkspaceBrand(env: Env): Promise<WorkspaceBrand> {
   );
   return {
     name: values.app_name || DEFAULT_APP_NAME,
-    tagline: values.brand_tagline || "Scheduling, without the overhead.",
+    tagline: values.brand_tagline || DEFAULT_TAGLINE,
     logo: values.brand_logo_url || values.brand_mark_url || "/brand/logo-light.svg",
     logoDark: values.brand_logo_dark_url || values.brand_logo_url || "/brand/logo-dark.svg",
     favicon: values.brand_favicon_url || values.brand_mark_url || "/brand/mark.svg",
@@ -774,7 +780,7 @@ export function calendarInvite(booking: BookingRow, env: Env, appName = DEFAULT_
     `DTEND:${calendarDate(end)}`,
     `SUMMARY:${calendarText(title)}`,
     `DESCRIPTION:${calendarText(description)}`,
-    `ORGANIZER:mailto:${organizer}`,
+    `ORGANIZER;CN=${DEFAULT_APP_NAME}:mailto:${organizer}`,
     `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
     ...(booking.meeting_url
       ? [`LOCATION:${calendarText(booking.meeting_url)}`, `URL:${booking.meeting_url}`]
@@ -808,6 +814,7 @@ export async function renderEmailHtml(
       label: presentation.label,
       message: text,
       appName: workspaceBrand?.name || DEFAULT_APP_NAME,
+      tagline: workspaceBrand?.tagline || DEFAULT_TAGLINE,
       logoUrl: new URL(
         workspaceBrand?.logo || "/brand/logo-light.svg",
         `${env.APP_URL.replace(/\/$/, "")}/`,
@@ -897,7 +904,7 @@ export async function sendAndLog(
     const workspaceBrand = await getWorkspaceBrand(env);
     const result = await env.EMAIL.send({
       to: booking.email,
-      from: env.FROM_EMAIL,
+      from: slotloomSender(env.FROM_EMAIL),
       replyTo: meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL),
       ...content,
       ...(attachCalendar

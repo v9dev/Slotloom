@@ -19,6 +19,7 @@ import {
   safeNumber,
   safeText,
   sendAndLog,
+  slotloomSender,
   type BookingRow,
   type Env,
   type LinkRow,
@@ -198,7 +199,7 @@ export async function adminRoutes(
     );
     await env.EMAIL.send({
       to: actor,
-      from: env.FROM_EMAIL,
+      from: slotloomSender(env.FROM_EMAIL),
       replyTo: actor,
       subject: `[Test] ${subject}`,
       text,

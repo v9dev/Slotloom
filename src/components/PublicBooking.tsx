@@ -13,7 +13,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
 import type { BookingLink, Slot } from "@/types";
 import { BrandLogo } from "@/components/BrandLogo";
-import { setPageTitle } from "@/brand";
+import { brand, setPageTitle } from "@/brand";
 import { browserTimeZone, TimeZoneSelect } from "@/components/TimeZoneSelect";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,10 @@ export default function PublicBooking({ slug }: { slug: string }) {
   return (
     <main className="min-h-svh bg-muted/30 px-4 py-8 sm:py-14">
       <div className="mx-auto w-full max-w-5xl">
-        <BrandLogo className="mb-6" />
+        <div className="mb-6">
+          <BrandLogo />
+          <p className="mt-2 text-sm text-muted-foreground">{brand.tagline}</p>
+        </div>
         <div className="grid overflow-hidden rounded-2xl border bg-background shadow-xl shadow-black/[.04] md:grid-cols-[320px_1fr]">
           <aside className="border-b bg-muted/30 p-6 md:border-r md:border-b-0 md:p-8">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

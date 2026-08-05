@@ -183,6 +183,7 @@ export function EmailTemplates({ canManage }: { canManage: boolean }) {
           label={presentation.label}
           message={message}
           appName={brand.name}
+          tagline={brand.tagline}
           logoUrl={new URL(brand.logo, window.location.origin).toString()}
           primaryColor={brand.primaryColor}
           accentColor={brand.accentColor}

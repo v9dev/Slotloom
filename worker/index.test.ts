@@ -6,7 +6,9 @@ import {
   slotsForSchedule,
 } from "./index";
 import {
+  calendarInvite,
   renderEmailHtml,
+  slotloomSender,
   turnstileConfiguration,
   verifyTurnstile,
 } from "./domain";
@@ -125,8 +127,46 @@ describe("emailContent", () => {
 
     expect(html).toContain("<!DOCTYPE html");
     expect(html).toContain("Thanks, we have your preferred time");
+    expect(html).toContain("Scheduling, without the overhead.");
     expect(html).toContain("Hello Taylor.");
     expect(html).toContain("https://meet.example.com/manage/example");
+  });
+
+  it("identifies Slotloom as the sender and calendar organizer", () => {
+    expect(slotloomSender("Meetings <meetings@example.com>")).toEqual({
+      email: "meetings@example.com",
+      name: "Slotloom",
+    });
+
+    const invite = calendarInvite(
+      {
+        id: "booking-1",
+        name: "Taylor",
+        email: "taylor@example.com",
+        starts_at: "2026-08-10T04:30:00.000Z",
+        final_starts_at: null,
+        time_zone: "UTC",
+        phone: null,
+        company: null,
+        message: null,
+        status: "confirmed",
+        workflow_status: "confirmed",
+        admin_note: null,
+        meeting_url: "https://meet.example.com/room",
+        meeting_notes: null,
+        meeting_sent_at: null,
+        assigned_to: "owner@example.com",
+        booking_link_id: "link-1",
+        created_at: "2026-08-04T00:00:00.000Z",
+        updated_at: "2026-08-04T00:00:00.000Z",
+      },
+      env as never,
+    );
+    const decodedInvite = Buffer.from(invite, "base64").toString("utf8");
+
+    expect(decodedInvite).toContain(
+      "ORGANIZER;CN=Slotloom:mailto:owner@example.com",
+    );
   });
 });
 

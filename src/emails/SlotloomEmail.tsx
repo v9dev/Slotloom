@@ -20,6 +20,7 @@ export type SlotloomEmailProps = {
   label?: string;
   message: string;
   appName: string;
+  tagline: string;
   logoUrl: string;
   primaryColor?: string;
   accentColor?: string;
@@ -38,6 +39,7 @@ export function SlotloomEmail({
   label = "Meeting update",
   message,
   appName,
+  tagline,
   logoUrl,
   primaryColor = "#2563eb",
   accentColor = "#7c3aed",
@@ -64,6 +66,9 @@ export function SlotloomEmail({
           <Section style={{ ...styles.accent, backgroundColor: primaryColor }} />
           <Section style={styles.brand}>
             <Img src={logoUrl} width="140" alt={appName} style={styles.logo} />
+            <Text style={styles.tagline} className="email-muted">
+              {tagline}
+            </Text>
           </Section>
           <Text style={{ ...styles.eyebrow, color: accentColor }}>{label}</Text>
           <Heading style={styles.heading} className="email-title">{heading}</Heading>
@@ -115,6 +120,7 @@ const styles = {
   accent: { backgroundColor: "#3b82f6", borderRadius: "0 0 8px 8px", height: "5px", margin: "0 0 30px" },
   brand: { marginBottom: "32px" },
   logo: { display: "block", height: "auto", maxWidth: "140px" },
+  tagline: { color: "#71717a", fontSize: "13px", lineHeight: "20px", margin: "10px 0 0" },
   eyebrow: { color: "#7c3aed", fontSize: "14px", fontWeight: 700, lineHeight: "20px", margin: "0 0 8px" },
   heading: { fontSize: "26px", lineHeight: "34px", margin: "0 0 22px" },
   copy: { color: "#52525b", fontSize: "15px", lineHeight: "24px", margin: "0 0 16px", whiteSpace: "pre-line" as const },
