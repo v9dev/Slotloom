@@ -213,7 +213,7 @@ Pages variables:
 
 ## Start on a different machine
 
-Prerequisites: Git, Node.js 20+, pnpm 10 and Wrangler/Cloudflare access.
+Prerequisites: Git, Node.js 22+, pnpm 10 and Wrangler/Cloudflare access.
 
 ```sh
 git clone YOUR_GITHUB_REPOSITORY_URL
@@ -297,7 +297,7 @@ Do these in order.
 
 For two Cloudflare accounts, keep Pages, Worker, D1, R2, Durable Objects and Access together in the compute account when possible. DNS can remain managed in the domain account, but custom-domain attachment and cross-account proxying must be validated before launch. The stable fallback is the Pages-provided domain for the frontend and the Worker `workers.dev` origin behind the Pages proxy.
 
-## GitHub and automatic deployment
+## GitHub CI and Cloudflare dashboard deployment
 
 No remote is configured by this document. Before pushing, verify `.dev.vars`, `.env`, `.wrangler`, `dist` and `node_modules` remain ignored.
 
@@ -309,9 +309,9 @@ git remote add origin YOUR_GITHUB_REPOSITORY_URL
 git push -u origin main
 ```
 
-The repository includes GitHub Actions CI, Dependabot configuration, a pull-request template, Apache 2.0 license, contribution instructions and a security policy.
+The repository includes GitHub Actions CI, Dependabot configuration, a pull-request template, Apache 2.0 license, contribution instructions and a security policy. GitHub Actions only validates the project; its Wrangler command uses `--dry-run`, has no Cloudflare credentials and does not deploy.
 
-For automatic production deployment:
+Configure production deployment through the Cloudflare dashboard Git integrations:
 
 - connect Pages to `main`
 - connect Workers Builds to the same repository
@@ -351,7 +351,7 @@ These are external configuration or future product tasks, not hidden completed f
 3. Create the production R2 bucket.
 4. Configure production Worker variables and secrets.
 5. Verify the Email Sending domain and perform real delivery tests.
-6. Create Pages and Worker Git deployments.
+6. Connect Pages and Workers Builds to GitHub through the Cloudflare dashboard.
 7. Configure the final frontend domain and `APP_URL`.
 8. Configure and test Cloudflare Access with the real owner email.
 9. Optionally configure Turnstile and test production verification.
