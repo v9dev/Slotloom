@@ -84,6 +84,11 @@ export type Booking = {
   meetingUrl: string | null;
   meetingNotes: string | null;
   meetingSentAt: string | null;
+  meetingProvider: "google" | "microsoft" | null;
+  meetingProviderPreference: "workspace" | "manual" | "google" | "microsoft";
+  meetingProviderEventId: string | null;
+  meetingProviderSyncedAt: string | null;
+  meetingProviderAccount: string | null;
   assignedTo: string | null;
   bookingLinkId: string;
   linkTitle?: string;
@@ -126,6 +131,9 @@ export type BookingDetail = {
     id: string;
     template: string;
     status: string;
+    delivery_method: string | null;
+    sender_email: string | null;
+    used_fallback: number;
     created_at: string;
     error: string | null;
   }>;
@@ -164,4 +172,43 @@ export type LinkAnalytics = {
   };
   statuses: Array<{ status: WorkflowStatus; count: number }>;
   daily: Array<{ date: string; count: number }>;
+};
+
+export type CalendarProvider = "google" | "microsoft";
+export type IntegrationConnection = {
+  id: string;
+  workspaceUserEmail: string;
+  providerEmail: string;
+  status: "active" | "error";
+  expiresAt: string;
+  updatedAt: string;
+  isCurrentUser: boolean;
+  mailCapable: boolean;
+};
+export type IntegrationProvider = {
+  provider: CalendarProvider;
+  label: string;
+  configured: boolean;
+  clientId: string;
+  tenantId: string;
+  hasClientSecret: boolean;
+  callbackUrl: string;
+  connections: IntegrationConnection[];
+};
+export type IntegrationOverview = {
+  encryptionReady: boolean;
+  defaultProvider: "manual" | CalendarProvider;
+  canManageConfig: boolean;
+  currentUserEmail: string;
+  providers: IntegrationProvider[];
+};
+
+export type EmailDeliveryMethod = "worker" | CalendarProvider;
+export type EmailDeliveryOverview = {
+  method: EmailDeliveryMethod;
+  workerFallback: boolean;
+  workerAvailable: boolean;
+  workerFrom: string;
+  oauthAvailable: Record<CalendarProvider, boolean>;
+  canManage: boolean;
 };

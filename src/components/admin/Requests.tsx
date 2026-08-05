@@ -225,9 +225,7 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
   return (
     <Shell
       title={
-        selectedLink
-          ? `${selectedLink.internalName} responses`
-          : "Responses"
+        selectedLink ? `${selectedLink.internalName} responses` : "Responses"
       }
       description={
         selectedLink
@@ -514,6 +512,11 @@ export function RequestDialog({
       await api.updateBooking(bookingId, {
         status: String(f.get("status")) as WorkflowStatus,
         meetingUrl: String(f.get("meetingUrl")),
+        meetingProviderPreference: String(
+          f.get("meetingProviderPreference") ||
+            detail?.booking.meetingProviderPreference ||
+            "workspace",
+        ) as Booking["meetingProviderPreference"],
         assignedTo: assignedTo === "unassigned" ? "" : assignedTo,
         adminNote: String(f.get("note")),
         finalStartsAt: String(f.get("finalStartsAt")),
@@ -527,9 +530,15 @@ export function RequestDialog({
   }
   async function send(template: string) {
     try {
-      await api.sendEmail(bookingId, template);
+      const result = await api.sendEmail(bookingId, template);
       setDetail(await api.booking(bookingId));
-      toast.success("Email sent");
+      toast.success(
+        result.deliveryMethod === "calendar"
+          ? template === "cancelled"
+            ? "Calendar cancellation sent"
+            : "Calendar invitation sent"
+          : `Email sent through ${result.deliveryMethod}${result.usedWorkerFallback ? " using Worker fallback" : ""}`,
+      );
     } catch (c) {
       setError(c instanceof Error ? c.message : "Could not send");
     }
@@ -605,6 +614,27 @@ export function RequestDialog({
                       </SelectContent>
                     </Select>
                   </Field>
+                  <Field label="Meeting method">
+                    <Select
+                      name="meetingProviderPreference"
+                      defaultValue={detail.booking.meetingProviderPreference}
+                      disabled={Boolean(detail.booking.meetingProviderEventId)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="workspace">
+                          Workspace default
+                        </SelectItem>
+                        <SelectItem value="google">Google Meet</SelectItem>
+                        <SelectItem value="microsoft">
+                          Microsoft Teams
+                        </SelectItem>
+                        <SelectItem value="manual">Manual link</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
                   <Field label="Final meeting time">
                     <DateTimeSelect
                       name="finalStartsAt"
@@ -613,13 +643,26 @@ export function RequestDialog({
                       )}
                     />
                   </Field>
-                  <Field label="Meeting URL">
+                  <Field
+                    label={
+                      detail.booking.meetingProvider
+                        ? `${detail.booking.meetingProvider === "google" ? "Google Meet" : "Microsoft Teams"} URL`
+                        : "Meeting URL"
+                    }
+                  >
                     <Input
+                      key={detail.booking.meetingUrl || "manual-meeting-url"}
                       name="meetingUrl"
                       type="url"
+                      readOnly={Boolean(detail.booking.meetingProviderEventId)}
                       defaultValue={detail.booking.meetingUrl || ""}
-                      placeholder="https://meet.google.com/..."
+                      placeholder="Created automatically on Confirm and invite"
                     />
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {detail.booking.meetingProviderEventId
+                        ? `Managed through ${detail.booking.meetingProviderAccount || "the connected organizer calendar"}. Time changes and cancellation sync automatically.`
+                        : "Enter a manual HTTPS link, or leave blank to use the default provider in Calendar and email integrations."}
+                    </p>
                   </Field>
                   <Field label="Internal note">
                     <Textarea
@@ -744,6 +787,13 @@ export function RequestDialog({
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {fmt(email.created_at)}
+                            {email.delivery_method
+                              ? ` · ${email.delivery_method}`
+                              : ""}
+                            {email.sender_email
+                              ? ` · ${email.sender_email}`
+                              : ""}
+                            {email.used_fallback ? " · fallback" : ""}
                           </p>
                           {email.error && (
                             <p className="mt-2 text-xs text-destructive">
@@ -787,9 +837,18 @@ export function RequestDialog({
                   type="button"
                   variant="outline"
                   onClick={() => send("meeting_details")}
+                  disabled={Boolean(
+                    detail.booking.meetingProviderEventId &&
+                      detail.booking.meetingUrl,
+                  )}
                 >
-                  <Mail />
-                  Send details
+                  <CalendarDays />
+                  {detail.booking.meetingProviderEventId &&
+                  detail.booking.meetingUrl
+                    ? "Calendar invite sent"
+                    : detail.booking.meetingProviderEventId
+                      ? "Finish calendar invite"
+                      : "Confirm and invite"}
                 </Button>
                 <Button
                   type="button"
@@ -810,8 +869,11 @@ export function RequestDialog({
                   type="button"
                   variant="destructive"
                   onClick={() => send("cancelled")}
+                  disabled={detail.booking.status === "cancelled"}
                 >
-                  Cancel email
+                  {detail.booking.status === "cancelled"
+                    ? "Meeting cancelled"
+                    : "Cancel meeting"}
                 </Button>
                 <Button className="ml-auto">Save changes</Button>
               </div>

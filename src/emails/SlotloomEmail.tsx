@@ -106,7 +106,7 @@ export function SlotloomEmail({
             Questions? Contact <Link href={`mailto:${contact}`} style={styles.link} className="email-link">{contact}</Link>
           </Text>
           <Text style={styles.footerMuted}>
-            This message was sent by {appName} for the meeting organizer.
+            © 2026 {appName}. {tagline}
           </Text>
         </Container>
       </Body>

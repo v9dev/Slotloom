@@ -13,6 +13,10 @@ import type {
   LinkAnalytics,
   MeetingFeedback,
   ActivityRecord,
+  CalendarProvider,
+  EmailDeliveryMethod,
+  EmailDeliveryOverview,
+  IntegrationOverview,
 } from "./types";
 
 type ApiError = { error?: string };
@@ -49,8 +53,12 @@ async function upload(path: string, file: File) {
     headers: token ? { authorization: `Bearer ${token}` } : {},
     body: data,
   });
-  const body = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
-  if (!response.ok || !body.url) throw new Error(body.error || "Upload failed.");
+  const body = (await response.json().catch(() => ({}))) as {
+    url?: string;
+    error?: string;
+  };
+  if (!response.ok || !body.url)
+    throw new Error(body.error || "Upload failed.");
   return body.url;
 }
 export const api = {
@@ -160,6 +168,7 @@ export const api = {
       adminNote?: string;
       finalStartsAt?: string;
       meetingUrl?: string;
+      meetingProviderPreference?: "workspace" | "manual" | CalendarProvider;
       meetingNotes?: string;
       assignedTo?: string;
     },
@@ -169,7 +178,11 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   sendEmail: (id: string, template: string) =>
-    request<{ messageId: string }>(`/api/admin/bookings/${id}/email`, {
+    request<{
+      messageId: string | null;
+      deliveryMethod: EmailDeliveryMethod | "calendar";
+      usedWorkerFallback: boolean;
+    }>(`/api/admin/bookings/${id}/email`, {
       method: "POST",
       body: JSON.stringify({ template }),
     }),
@@ -243,6 +256,53 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  integrations: () => request<IntegrationOverview>("/api/admin/integrations"),
+  emailDelivery: () =>
+    request<EmailDeliveryOverview>("/api/admin/email-delivery"),
+  updateEmailDelivery: (payload: {
+    method: EmailDeliveryMethod;
+    workerFallback: boolean;
+  }) =>
+    request<{ success: boolean }>("/api/admin/email-delivery", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  testEmailDelivery: () =>
+    request<{
+      deliveryMethod: EmailDeliveryMethod;
+      usedWorkerFallback: boolean;
+    }>("/api/admin/email-delivery/test", {
+      method: "POST",
+      body: "{}",
+    }),
+  saveIntegrationConfig: (
+    provider: CalendarProvider,
+    payload: { clientId: string; clientSecret: string; tenantId?: string },
+  ) =>
+    request<{ success: boolean }>(
+      `/api/admin/integrations/${provider}/config`,
+      { method: "PUT", body: JSON.stringify(payload) },
+    ),
+  removeIntegrationConfig: (provider: CalendarProvider) =>
+    request<{ success: boolean }>(
+      `/api/admin/integrations/${provider}/config`,
+      { method: "DELETE" },
+    ),
+  setDefaultMeetingProvider: (provider: "manual" | CalendarProvider) =>
+    request<{ success: boolean }>("/api/admin/integrations/default", {
+      method: "PATCH",
+      body: JSON.stringify({ provider }),
+    }),
+  connectIntegration: (provider: CalendarProvider) =>
+    request<{ authorizationUrl: string }>(
+      `/api/admin/integrations/${provider}/connect`,
+      { method: "POST", body: "{}" },
+    ),
+  disconnectIntegration: (provider: CalendarProvider) =>
+    request<{ success: boolean }>(
+      `/api/admin/integrations/${provider}/disconnect`,
+      { method: "POST", body: "{}" },
+    ),
   uploadBrandAsset: (kind: "logo" | "logo-dark" | "favicon", file: File) =>
     upload(`/api/admin/brand-assets/${kind}`, file),
   manageBooking: (token: string) =>

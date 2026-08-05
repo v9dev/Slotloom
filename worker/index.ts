@@ -1,5 +1,4 @@
 import {
-  EMAIL_TEMPLATES,
   WORKFLOW_STATUSES,
   authorizeAdmin,
   configuredEmailContent,
@@ -18,8 +17,6 @@ import {
   renderEmailHtml,
   safeNumber,
   safeText,
-  sendAndLog,
-  slotloomSender,
   type BookingRow,
   type Env,
   type LinkRow,
@@ -39,6 +36,12 @@ import {
   submitFeedback,
 } from "./public-routes";
 import { serveBrandAsset, uploadBrandAsset } from "./brand-assets";
+import {
+  integrationAdminRoute,
+  oauthCallbackRoute,
+} from "./calendar-integrations";
+import { bookingAdminRoute } from "./booking-admin";
+import { deliverEmail, emailDeliveryAdminRoute } from "./email-delivery";
 export async function adminRoutes(
   request: Request,
   env: Env,
@@ -54,6 +57,20 @@ export async function adminRoutes(
       403,
     );
   const actor = user.email;
+  const emailDeliveryResponse = await emailDeliveryAdminRoute(
+    request,
+    env,
+    path,
+    user,
+  );
+  if (emailDeliveryResponse) return emailDeliveryResponse;
+  const integrationResponse = await integrationAdminRoute(
+    request,
+    env,
+    path,
+    user,
+  );
+  if (integrationResponse) return integrationResponse;
   if (path === "/api/admin/notifications/live") {
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket")
       return json({ error: "A WebSocket upgrade is required." }, 426);
@@ -147,8 +164,6 @@ export async function adminRoutes(
     return json({ success: true });
   }
   if (templateMatch?.[2] === "/test" && request.method === "POST") {
-    if (!env.EMAIL)
-      return json({ error: "Email sending is not configured." }, 503);
     const template = await env.DB.prepare(
       "SELECT * FROM email_templates WHERE template_key=?",
     )
@@ -197,15 +212,14 @@ export async function adminRoutes(
       },
       variables.manage_url,
     );
-    await env.EMAIL.send({
+    const delivery = await deliverEmail(env, actor, {
       to: actor,
-      from: slotloomSender(env.FROM_EMAIL),
       replyTo: actor,
       subject: `[Test] ${subject}`,
       text,
       html: rendered.html,
     });
-    return json({ success: true });
+    return json({ success: true, deliveryMethod: delivery.deliveryMethod });
   }
   if (path === "/api/admin/settings" && request.method === "GET") {
     const rows = await env.DB.prepare(
@@ -236,9 +250,18 @@ export async function adminRoutes(
       ["data_retention_days", String(retention)],
       ["app_name", safeText(body.appName, 80) || "Slotloom"],
       ["brand_tagline", safeText(body.brandTagline, 160)],
-      ["brand_logo_url", safeAssetUrl(body.brandLogoUrl, "/brand/logo-light.svg")],
-      ["brand_logo_dark_url", safeAssetUrl(body.brandLogoDarkUrl, "/brand/logo-dark.svg")],
-      ["brand_favicon_url", safeAssetUrl(body.brandFaviconUrl, "/brand/mark.svg")],
+      [
+        "brand_logo_url",
+        safeAssetUrl(body.brandLogoUrl, "/brand/logo-light.svg"),
+      ],
+      [
+        "brand_logo_dark_url",
+        safeAssetUrl(body.brandLogoDarkUrl, "/brand/logo-dark.svg"),
+      ],
+      [
+        "brand_favicon_url",
+        safeAssetUrl(body.brandFaviconUrl, "/brand/mark.svg"),
+      ],
       ["brand_primary_color", safeColor(body.brandPrimaryColor, "#2563eb")],
       ["brand_accent_color", safeColor(body.brandAccentColor, "#7c3aed")],
     ];
@@ -252,7 +275,9 @@ export async function adminRoutes(
     );
     return json({ success: true });
   }
-  const brandUpload = path.match(/^\/api\/admin\/brand-assets\/(logo|logo-dark|favicon)$/);
+  const brandUpload = path.match(
+    /^\/api\/admin\/brand-assets\/(logo|logo-dark|favicon)$/,
+  );
   if (brandUpload && request.method === "POST") {
     if (!can(user.role, "manage_team"))
       return json({ error: "Only owners can change workspace branding." }, 403);
@@ -829,111 +854,8 @@ export async function adminRoutes(
       },
     });
   }
-  const bookingMatch = path.match(
-    /^\/api\/admin\/bookings\/([^/]+)(\/email)?$/,
-  );
-  if (bookingMatch) {
-    const id = decodeURIComponent(bookingMatch[1]);
-    const booking = await getBooking(env, id);
-    if (!booking) return json({ error: "Meeting request not found." }, 404);
-    if (!bookingMatch[2] && request.method === "GET") {
-      const [activities, emails, feedback] = await Promise.all([
-        env.DB.prepare(
-          "SELECT * FROM activity_events WHERE booking_id=? ORDER BY created_at DESC",
-        )
-          .bind(id)
-          .all(),
-        env.DB.prepare(
-          "SELECT * FROM email_events WHERE booking_id=? ORDER BY created_at DESC",
-        )
-          .bind(id)
-          .all(),
-        env.DB.prepare(
-          "SELECT rating,message,created_at,updated_at FROM meeting_feedback WHERE booking_id=?",
-        )
-          .bind(id)
-          .first(),
-      ]);
-      return json({
-        booking: normalizeBooking(booking),
-        activities: activities.results,
-        emails: emails.results,
-        feedback,
-      });
-    }
-    if (bookingMatch[2] === "/email" && request.method === "POST") {
-      const body: { template?: string } = await request
-        .json<{ template?: string }>()
-        .catch(() => ({}));
-      const template = safeText(body.template, 30);
-      if (!EMAIL_TEMPLATES.has(template))
-        return json({ error: "Unknown email template." }, 400);
-      if (
-        ["meeting_details", "rescheduled_confirmation", "reminder"].includes(template) &&
-        !booking.meeting_url
-      )
-        return json(
-          { error: "Add a meeting link before sending this email." },
-          400,
-        );
-      try {
-        const messageId = await sendAndLog(env, booking, template);
-        if (["meeting_details", "rescheduled_confirmation"].includes(template))
-          await env.DB.prepare(
-            "UPDATE bookings SET workflow_status='confirmed', meeting_sent_at=?, updated_at=? WHERE id=?",
-          )
-            .bind(new Date().toISOString(), new Date().toISOString(), id)
-            .run();
-        await recordActivity(env, {
-          bookingId: id,
-          linkId: booking.booking_link_id,
-          actor,
-          type: "email.sent",
-          summary: `Sent ${template.replace("_", " ")} email`,
-        });
-        return json({ messageId });
-      } catch {
-        return json(
-          { error: "Email delivery failed. The attempt was logged." },
-          502,
-        );
-      }
-    }
-    if (!bookingMatch[2] && request.method === "PATCH") {
-      const body: Record<string, unknown> = await request
-        .json<Record<string, unknown>>()
-        .catch(() => ({}));
-      const status = safeText(body.status, 30) as WorkflowStatus;
-      if (!WORKFLOW_STATUSES.has(status))
-        return json({ error: "Invalid status." }, 400);
-      const finalStartsAt = safeText(body.finalStartsAt, 40);
-      const meetingUrl = safeText(body.meetingUrl, 500);
-      if (meetingUrl && !/^https:\/\//i.test(meetingUrl))
-        return json({ error: "Meeting link must start with https://" }, 400);
-      await env.DB.prepare(
-        "UPDATE bookings SET workflow_status=?,admin_note=?,final_starts_at=?,meeting_url=?,meeting_notes=?,assigned_to=?,updated_at=? WHERE id=?",
-      )
-        .bind(
-          status,
-          safeText(body.adminNote, 2000) || null,
-          finalStartsAt || null,
-          meetingUrl || null,
-          safeText(body.meetingNotes, 2000) || null,
-          safeText(body.assignedTo, 254) || null,
-          new Date().toISOString(),
-          id,
-        )
-        .run();
-      await recordActivity(env, {
-        bookingId: id,
-        linkId: booking.booking_link_id,
-        actor,
-        type: "booking.updated",
-        summary: `Updated request to ${status.replace("_", " ")}`,
-      });
-      return json({ booking: normalizeBooking((await getBooking(env, id))!) });
-    }
-  }
+  const bookingResponse = await bookingAdminRoute(request, env, path, actor);
+  if (bookingResponse) return bookingResponse;
   return json({ error: "Not found." }, 404);
 }
 
@@ -942,6 +864,8 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     try {
+      const oauthResponse = await oauthCallbackRoute(request, env, path);
+      if (oauthResponse) return oauthResponse;
       const publicMatch = path.match(/^\/api\/public\/links\/([^/]+)$/);
       if (publicMatch)
         return publicLink(request, env, decodeURIComponent(publicMatch[1]));

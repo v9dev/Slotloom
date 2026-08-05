@@ -26,7 +26,7 @@
 Slotloom is a self-hosted, white-label platform for publishing availability,
 collecting preferred meeting times, and managing follow-up from one workspace.
 It runs without a traditional server: Pages serves the React app, while Workers,
-D1, R2, Durable Objects, and Email Sending power the backend.
+D1, R2, and Durable Objects power the backend.
 
 ## Highlights
 
@@ -35,18 +35,20 @@ D1, R2, Durable Objects, and Email Sending power the backend.
 - Owner, admin, member, and viewer roles protected by Cloudflare Access
 - Runtime white-label branding, including logos, colors, favicon, and email identity
 - Email templates, calendar invitations, follow-ups, feedback, and audit history
+- Google Meet, Teams, Gmail, and Outlook automation with per-organizer OAuth
+- Selectable OAuth or Cloudflare Worker email delivery with optional fallback
 - Real-time dashboard notifications and optional Turnstile bot protection
 
 ## Stack
 
-| Layer     | Technology                                       |
-| --------- | ------------------------------------------------ |
-| Web       | React, TypeScript, Vite, Tailwind CSS, shadcn/ui |
-| Compute   | Cloudflare Pages and Workers                     |
-| Data      | Cloudflare D1, R2, and Durable Objects           |
-| Security  | Cloudflare Access and Turnstile                  |
-| Messaging | Cloudflare Email Sending and React Email         |
-| Quality   | Vitest, TypeScript, and GitHub Actions           |
+| Layer     | Technology                                        |
+| --------- | ------------------------------------------------- |
+| Web       | React, TypeScript, Vite, Tailwind CSS, shadcn/ui  |
+| Compute   | Cloudflare Pages and Workers                      |
+| Data      | Cloudflare D1, R2, and Durable Objects            |
+| Security  | Cloudflare Access and Turnstile                   |
+| Messaging | Gmail, Outlook, Cloudflare Email, and React Email |
+| Quality   | Vitest, TypeScript, and GitHub Actions            |
 
 ## Quick start
 
@@ -68,17 +70,20 @@ WebSocket traffic to the local Worker on port `8787`.
 
 ## Configuration
 
-- Worker variables: `FROM_EMAIL`, `APP_URL`, `TEAM_DOMAIN`, `POLICY_AUD`,
-  `BOOTSTRAP_OWNER_EMAIL`, and optional `TURNSTILE_SITE_KEY`
-- Worker secret: optional encrypted `TURNSTILE_SECRET`
-- Pages variables: `BACKEND_URL` and `PNPM_VERSION=10.28.0`
+- Worker variables: `APP_URL`, `TEAM_DOMAIN`, `POLICY_AUD`,
+  `BOOTSTRAP_OWNER_EMAIL`, optional `FROM_EMAIL` for Worker Email, and optional
+  `TURNSTILE_SITE_KEY`
+- Worker secrets: optional `TURNSTILE_SECRET` and required
+  `OAUTH_ENCRYPTION_KEY` when calendar integrations are enabled
+- Pages variable: `BACKEND_URL`
 - Local-only authentication: `ADMIN_TOKEN` in the ignored `.dev.vars` file
 - Local deployment bindings: copy `wrangler.example.jsonc` to the ignored
   `wrangler.jsonc`, then add values from your own Cloudflare account
 
-Branding and booking schedules are managed in the application, not through
-environment variables. See the [deployment handover](HANDOFF.md) for provisioning,
-Access, Turnstile, Email Sending, and production configuration.
+Branding, booking schedules, and Google or Microsoft provider credentials are
+managed in the application. Provider secrets and OAuth tokens are encrypted
+before D1 storage and are never returned to the browser. See the
+[deployment handover](HANDOFF.md) for setup and production configuration.
 
 ## Deployment
 

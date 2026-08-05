@@ -151,6 +151,11 @@ const EmailTemplates = lazy(() =>
     default: module.EmailTemplates,
   })),
 );
+const Integrations = lazy(() =>
+  import("./admin/Integrations").then((module) => ({
+    default: module.Integrations,
+  })),
+);
 const WorkspaceSettings = lazy(() =>
   import("./admin/Workspace").then((module) => ({
     default: module.WorkspaceSettings,
@@ -166,6 +171,7 @@ const adminSections = {
   requests: "Responses",
   activity: "Activity",
   emails: "Email templates",
+  integrations: "Calendar and email integrations",
   settings: "Settings",
   team: "Team & roles",
 } as const;
@@ -175,6 +181,7 @@ function adminSection(path: string): keyof typeof adminSections {
   if (path.includes("/requests")) return "requests";
   if (path.includes("/activity")) return "activity";
   if (path.includes("/emails")) return "emails";
+  if (path.includes("/integrations")) return "integrations";
   if (path.includes("/settings")) return "settings";
   if (path.includes("/team")) return "team";
   return "overview";
@@ -245,7 +252,9 @@ export default function Admin() {
   const nav = <Nav section={section} user={user} />;
   return (
     <div className="h-svh overflow-hidden bg-muted/30 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className="hidden h-svh overflow-hidden border-r bg-background lg:block">{nav}</aside>
+      <aside className="hidden h-svh overflow-hidden border-r bg-background lg:block">
+        {nav}
+      </aside>
       <div className="flex h-svh min-w-0 flex-col overflow-hidden">
         <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur lg:justify-end lg:px-6">
           <Sheet>
@@ -262,23 +271,27 @@ export default function Admin() {
           <Notifications />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <Suspense fallback={<Loader2 className="mx-auto mt-20 animate-spin" />}>
-          {section === "overview" ? (
-            <Overview canManageLinks={canManageLinks} />
-          ) : section === "links" ? (
-            <Links canManage={canManageLinks} />
-          ) : section === "requests" ? (
-            <Requests canEdit={canEditRequests} />
-          ) : section === "activity" ? (
-            <ActivityLog />
-          ) : section === "emails" ? (
-            <EmailTemplates canManage={canManageLinks} />
-          ) : section === "settings" ? (
-            <WorkspaceSettings />
-          ) : (
-            <Team />
-          )}
-        </Suspense>
+          <Suspense
+            fallback={<Loader2 className="mx-auto mt-20 animate-spin" />}
+          >
+            {section === "overview" ? (
+              <Overview canManageLinks={canManageLinks} />
+            ) : section === "links" ? (
+              <Links canManage={canManageLinks} />
+            ) : section === "requests" ? (
+              <Requests canEdit={canEditRequests} />
+            ) : section === "activity" ? (
+              <ActivityLog />
+            ) : section === "emails" ? (
+              <EmailTemplates canManage={canManageLinks} />
+            ) : section === "integrations" ? (
+              <Integrations user={user} />
+            ) : section === "settings" ? (
+              <WorkspaceSettings />
+            ) : (
+              <Team />
+            )}
+          </Suspense>
         </main>
       </div>
     </div>
@@ -293,7 +306,12 @@ function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
       path: "/admin",
     },
     { id: "links", label: "Booking links", icon: Link2, path: "/admin/links" },
-    { id: "requests", label: "Responses", icon: Users, path: "/admin/requests" },
+    {
+      id: "requests",
+      label: "Responses",
+      icon: Users,
+      path: "/admin/requests",
+    },
     {
       id: "activity",
       label: "Activity",
@@ -306,6 +324,16 @@ function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
       icon: Mail,
       path: "/admin/emails",
     },
+    ...(user.role !== "viewer"
+      ? [
+          {
+            id: "integrations",
+            label: "Calendar and email",
+            icon: CalendarDays,
+            path: "/admin/integrations",
+          },
+        ]
+      : []),
     ...(user.role === "owner"
       ? [
           {

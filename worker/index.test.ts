@@ -13,6 +13,25 @@ import {
   verifyTurnstile,
 } from "./domain";
 import { pageTitle } from "../src/brand";
+import { decryptSecret, encryptSecret } from "./secret-crypto";
+import {
+  extractGoogleMeetingLink,
+  extractMicrosoftMeetingLink,
+} from "./calendar-integrations";
+import { googleEventBody, microsoftEventBody } from "./calendar-event-data";
+import {
+  connectionForMeeting,
+  meetingProviderForBooking,
+} from "./calendar-connection-selection";
+import {
+  calendarOAuthRedirect,
+  calendarOAuthStartResponse,
+  readCalendarOAuthState,
+} from "./calendar-oauth-urls";
+import { gmailRawMessage } from "./email-mime";
+import { grantsMailSend, oauthScopes } from "./oauth-scopes";
+import { deliverEmail } from "./email-delivery";
+import { providerOwnsLifecycleMessage } from "./booking-admin";
 
 const env = {
   APP_URL: "https://meet.example.com",
@@ -128,6 +147,10 @@ describe("emailContent", () => {
     expect(html).toContain("<!DOCTYPE html");
     expect(html).toContain("Thanks, we have your preferred time");
     expect(html).toContain("Scheduling, without the overhead.");
+    expect(html.replaceAll("<!-- -->", "")).toContain(
+      "© 2026 Slotloom. Scheduling, without the overhead.",
+    );
+    expect(html).not.toContain("for the meeting organizer");
     expect(html).toContain("Hello Taylor.");
     expect(html).toContain("https://meet.example.com/manage/example");
   });
@@ -162,11 +185,99 @@ describe("emailContent", () => {
       },
       env as never,
     );
-    const decodedInvite = Buffer.from(invite, "base64").toString("utf8");
+    expect(invite).toContain("ORGANIZER;CN=Slotloom:mailto:owner@example.com");
+    expect(invite).toContain("BEGIN:VCALENDAR");
+  });
 
-    expect(decodedInvite).toContain(
-      "ORGANIZER;CN=Slotloom:mailto:owner@example.com",
+  it("builds Gmail MIME and keeps Worker attachments as raw content", async () => {
+    const message = {
+      to: "visitor@example.com",
+      replyTo: "owner@example.com",
+      subject: "Meeting confirmed",
+      text: "Join the meeting.",
+      html: "<p>Join the meeting.</p>",
+      attachments: [
+        {
+          content: "BEGIN:VCALENDAR\r\nEND:VCALENDAR",
+          filename: "meeting.ics",
+          type: "text/calendar",
+        },
+      ],
+    };
+    const raw = gmailRawMessage("owner@example.com", message);
+    const decoded = Buffer.from(
+      raw.replaceAll("-", "+").replaceAll("_", "/"),
+      "base64",
+    ).toString("utf8");
+    expect(decoded).toContain("To: visitor@example.com");
+    expect(decoded).toContain('filename="meeting.ics"');
+
+    const send = vi.fn(async () => ({ messageId: "worker-message" }));
+    const result = await deliverEmail(
+      {
+        EMAIL: { send },
+        FROM_EMAIL: "Slotloom <notifications@example.com>",
+      } as never,
+      "owner@example.com",
+      message,
+      { method: "worker", workerFallback: false },
     );
+    expect(result.deliveryMethod).toBe("worker");
+    expect(send.mock.calls[0][0].attachments?.[0].content).toContain(
+      "BEGIN:VCALENDAR",
+    );
+  });
+
+  it("uses Worker Email only when the owner enabled OAuth fallback", async () => {
+    const send = vi.fn(async () => ({ messageId: "fallback-message" }));
+    const database = {
+      prepare: () => ({
+        bind: () => ({
+          first: async () => null,
+          all: async () => ({ results: [] }),
+        }),
+      }),
+    };
+    const result = await deliverEmail(
+      {
+        DB: database,
+        EMAIL: { send },
+        FROM_EMAIL: "notifications@example.com",
+        BOOTSTRAP_OWNER_EMAIL: "owner@example.com",
+      } as never,
+      "member@example.com",
+      {
+        to: "visitor@example.com",
+        subject: "Test",
+        text: "Test",
+        html: "<p>Test</p>",
+      },
+      { method: "google", workerFallback: true },
+    );
+    expect(result.deliveryMethod).toBe("worker");
+    expect(result.usedWorkerFallback).toBe(true);
+    expect(send).toHaveBeenCalledOnce();
+
+    send.mockClear();
+    await expect(
+      deliverEmail(
+        {
+          DB: database,
+          EMAIL: { send },
+          FROM_EMAIL: "notifications@example.com",
+          BOOTSTRAP_OWNER_EMAIL: "owner@example.com",
+        } as never,
+        "member@example.com",
+        {
+          to: "visitor@example.com",
+          subject: "Test",
+          text: "Test",
+          html: "<p>Test</p>",
+        },
+        { method: "google", workerFallback: false },
+      ),
+    ).rejects.toThrow("No active Google Gmail connection");
+    expect(send).not.toHaveBeenCalled();
   });
 });
 
@@ -252,6 +363,169 @@ describe("Turnstile", () => {
       } as never,
     );
     expect(valid).toBe(false);
+  });
+});
+
+describe("calendar integration security", () => {
+  it("uses one provider invitation for managed meeting lifecycle messages", () => {
+    expect(
+      providerOwnsLifecycleMessage(
+        "meeting_details",
+        { meeting_provider_event_id: null },
+        { meeting_provider_event_id: "google-event" },
+      ),
+    ).toBe(true);
+    expect(
+      providerOwnsLifecycleMessage(
+        "cancelled",
+        { meeting_provider_event_id: "teams-event" },
+        { meeting_provider_event_id: null },
+      ),
+    ).toBe(true);
+    expect(
+      providerOwnsLifecycleMessage(
+        "reminder",
+        { meeting_provider_event_id: "google-event" },
+        { meeting_provider_event_id: "google-event" },
+      ),
+    ).toBe(false);
+  });
+
+  it("requests narrow calendar and email sending permissions", () => {
+    expect(oauthScopes.google).toContain(
+      "https://www.googleapis.com/auth/gmail.send",
+    );
+    expect(oauthScopes.microsoft).toContain("Mail.Send");
+    expect(
+      grantsMailSend(
+        "google",
+        "openid https://www.googleapis.com/auth/gmail.send",
+      ),
+    ).toBe(true);
+    expect(grantsMailSend("microsoft", "User.Read Mail.Send")).toBe(true);
+    expect(grantsMailSend("microsoft", "User.Read Calendars.ReadWrite")).toBe(
+      false,
+    );
+  });
+
+  it("stores provider secrets as authenticated JWE ciphertext", async () => {
+    const key = Buffer.alloc(32, 7).toString("base64");
+    const plaintext = "provider-client-secret";
+    const ciphertext = await encryptSecret(plaintext, key);
+
+    expect(ciphertext.split(".")).toHaveLength(5);
+    expect(ciphertext).not.toContain(plaintext);
+    expect(await decryptSecret(ciphertext, key)).toBe(plaintext);
+    await expect(
+      decryptSecret(ciphertext, Buffer.alloc(32, 8).toString("base64")),
+    ).rejects.toThrow();
+  });
+
+  it("extracts joining links from Google and Microsoft event responses", () => {
+    expect(
+      extractGoogleMeetingLink({
+        conferenceData: {
+          entryPoints: [
+            { entryPointType: "phone", uri: "tel:+10000000000" },
+            {
+              entryPointType: "video",
+              uri: "https://meet.google.com/abc-defg-hij",
+            },
+          ],
+        },
+      }),
+    ).toBe("https://meet.google.com/abc-defg-hij");
+    expect(
+      extractMicrosoftMeetingLink({
+        onlineMeeting: {
+          joinUrl: "https://teams.microsoft.com/l/meetup-join/example",
+        },
+      }),
+    ).toBe("https://teams.microsoft.com/l/meetup-join/example");
+  });
+
+  it("builds native online meeting event payloads", () => {
+    const booking = {
+      id: "booking-1",
+      name: "Taylor",
+      email: "taylor@example.com",
+      starts_at: "2026-08-10T04:30:00.000Z",
+      final_starts_at: null,
+      duration_minutes: 45,
+      link_title: "Product review",
+      meeting_notes: "Bring the project brief.",
+    } as never;
+    const google = googleEventBody(booking, true);
+    const microsoft = microsoftEventBody(booking, true);
+
+    expect(google.conferenceData.createRequest.conferenceSolutionKey.type).toBe(
+      "hangoutsMeet",
+    );
+    expect(google.attendees).toEqual([{ email: "taylor@example.com" }]);
+    expect(microsoft.isOnlineMeeting).toBe(true);
+    expect(microsoft.onlineMeetingProvider).toBe("teamsForBusiness");
+    expect(microsoft.transactionId).toBe("booking-1");
+  });
+
+  it("uses a response override and falls back to an owner connection", async () => {
+    const ownerConnection = {
+      id: "owner-google",
+      provider: "google",
+      workspace_user_email: "owner@example.com",
+      status: "active",
+    };
+    const database = {
+      prepare: (query: string) => ({
+        bind: () => ({
+          first: async () =>
+            query.includes("JOIN workspace_users") ? ownerConnection : null,
+        }),
+      }),
+    };
+    const provider = await meetingProviderForBooking(
+      { DB: database } as never,
+      { meeting_provider_preference: "google" } as never,
+    );
+    const selected = await connectionForMeeting(
+      {
+        DB: database,
+        BOOTSTRAP_OWNER_EMAIL: "owner@example.com",
+      } as never,
+      "google",
+      "member@example.com",
+    );
+
+    expect(provider).toBe("google");
+    expect(selected.usedOwnerFallback).toBe(true);
+    expect(selected.connection?.id).toBe("owner-google");
+  });
+
+  it("binds OAuth state to a short-lived HttpOnly browser cookie", async () => {
+    const started = calendarOAuthStartResponse(
+      { APP_URL: "https://meet.example.com" } as never,
+      "google",
+      "browser-state",
+      "https://accounts.google.com/o/oauth2/v2/auth?state=browser-state",
+    );
+    const cookie = started.headers.get("set-cookie") || "";
+    const body = await started.json<{ authorizationUrl: string }>();
+    const request = new Request(
+      "https://meet.example.com/api/oauth/google/callback",
+      { headers: { cookie: cookie.split(";")[0] } },
+    );
+
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Secure");
+    expect(Object.keys(body)).toEqual(["authorizationUrl"]);
+    expect(readCalendarOAuthState(request, "google")).toBe("browser-state");
+    expect(
+      calendarOAuthRedirect(
+        { APP_URL: "https://meet.example.com" } as never,
+        "google",
+        "connected",
+      ).headers.get("set-cookie"),
+    ).toContain("Max-Age=0");
   });
 });
 

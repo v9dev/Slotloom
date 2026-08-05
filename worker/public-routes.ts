@@ -17,7 +17,6 @@ import {
   recordUserActivity,
   safeNumber,
   safeText,
-  sendAndLog,
   sha256,
   slotsForSchedule,
   slugify,
@@ -32,7 +31,12 @@ import {
   type UserRole,
   type WorkspaceUser,
 } from "./domain";
+import { sendAndLog } from "./email-delivery";
 import type { JWTPayload } from "jose";
+import {
+  cancelProviderMeeting,
+  syncProviderMeeting,
+} from "./calendar-integrations";
 export async function publicLink(request: Request, env: Env, slug: string) {
   const link = await getLink(env, slug, true);
   if (!link || link.status !== "active")
@@ -310,6 +314,20 @@ export async function manageBooking(request: Request, env: Env, token: string) {
     )
       .bind(now, managed.id)
       .run();
+    if (managed.meeting_provider_event_id) {
+      try {
+        await cancelProviderMeeting(env, managed);
+      } catch {
+        await createNotification(
+          env,
+          managed.assigned_to,
+          "calendar.sync_failed",
+          "Calendar cancellation needs attention",
+          `The request was cancelled in Slotloom, but its provider event could not be cancelled.`,
+          `/admin/requests?open=${managed.id}`,
+        );
+      }
+    }
     await recordActivity(env, {
       bookingId: managed.id,
       linkId: managed.booking_link_id,
@@ -348,20 +366,33 @@ export async function manageBooking(request: Request, env: Env, token: string) {
       summary: `${managed.name} selected a new time`,
     });
     let status = "rescheduling";
-    if (managed.meeting_url && env.EMAIL) {
-      const updated = await getBooking(env, managed.id);
-      if (updated) {
-        try {
-          await sendAndLog(env, updated, "rescheduled_confirmation");
-          await env.DB.prepare(
-            "UPDATE bookings SET workflow_status='confirmed',meeting_sent_at=?,updated_at=? WHERE id=?",
-          )
-            .bind(now, now, managed.id)
-            .run();
-          status = "confirmed";
-        } catch {
-          // The selected time remains saved for the organizer to confirm manually.
-        }
+    let updated = await getBooking(env, managed.id);
+    let calendarReady = true;
+    if (updated?.meeting_provider_event_id) {
+      try {
+        updated = await syncProviderMeeting(env, updated);
+      } catch {
+        calendarReady = false;
+      }
+    }
+    if (updated?.meeting_provider_event_id && calendarReady) {
+      await env.DB.prepare(
+        "UPDATE bookings SET workflow_status='confirmed',meeting_sent_at=?,updated_at=? WHERE id=?",
+      )
+        .bind(now, now, managed.id)
+        .run();
+      status = "confirmed";
+    } else if (updated?.meeting_url && calendarReady) {
+      try {
+        await sendAndLog(env, updated, "rescheduled_confirmation");
+        await env.DB.prepare(
+          "UPDATE bookings SET workflow_status='confirmed',meeting_sent_at=?,updated_at=? WHERE id=?",
+        )
+          .bind(now, now, managed.id)
+          .run();
+        status = "confirmed";
+      } catch {
+        // The selected time remains saved for the organizer to confirm manually.
       }
     }
     await createNotification(
@@ -370,7 +401,9 @@ export async function manageBooking(request: Request, env: Env, token: string) {
       "booking.rescheduled",
       status === "confirmed" ? "Meeting rescheduled" : "New slot selected",
       status === "confirmed"
-        ? `${managed.name} selected a new slot and received the updated confirmation.`
+        ? updated?.meeting_provider_event_id
+          ? `${managed.name} selected a new slot and the calendar invitation was updated.`
+          : `${managed.name} selected a new slot and received the updated confirmation.`
         : `${managed.name} selected a new slot. Add a meeting link to confirm it.`,
       `/admin/requests?open=${managed.id}`,
     );

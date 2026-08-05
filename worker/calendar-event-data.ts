@@ -1,0 +1,93 @@
+import type { BookingRow } from "./domain";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const stringValue = (value: unknown) =>
+  typeof value === "string" ? value : "";
+
+export function extractGoogleMeetingLink(value: unknown) {
+  if (!isRecord(value)) return null;
+  const direct = stringValue(value.hangoutLink);
+  if (direct) return direct;
+  const conference = isRecord(value.conferenceData) ? value.conferenceData : {};
+  const entries = Array.isArray(conference.entryPoints)
+    ? conference.entryPoints
+    : [];
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    const uri = stringValue(entry.uri);
+    if (uri && stringValue(entry.entryPointType) === "video") return uri;
+  }
+  return null;
+}
+
+export function extractMicrosoftMeetingLink(value: unknown) {
+  if (!isRecord(value)) return null;
+  const onlineMeeting = isRecord(value.onlineMeeting)
+    ? value.onlineMeeting
+    : {};
+  return stringValue(onlineMeeting.joinUrl) || null;
+}
+
+function meetingTimes(booking: BookingRow) {
+  const start = new Date(booking.final_starts_at || booking.starts_at);
+  const end = new Date(
+    start.getTime() + (booking.duration_minutes || 30) * 60_000,
+  );
+  if (Number.isNaN(start.getTime())) throw new Error("Invalid meeting time.");
+  return { start, end };
+}
+
+function meetingDescription(booking: BookingRow) {
+  return ["Scheduled with Slotloom.", booking.meeting_notes || ""]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function googleEventBody(booking: BookingRow, create: boolean) {
+  const { start, end } = meetingTimes(booking);
+  return {
+    summary: booking.link_title || "Meeting",
+    description: meetingDescription(booking),
+    start: { dateTime: start.toISOString(), timeZone: "UTC" },
+    end: { dateTime: end.toISOString(), timeZone: "UTC" },
+    ...(create
+      ? {
+          attendees: [{ email: booking.email }],
+          guestsCanInviteOthers: false,
+          guestsCanModify: false,
+          conferenceData: {
+            createRequest: {
+              requestId: booking.id,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+export function microsoftEventBody(booking: BookingRow, create: boolean) {
+  const { start, end } = meetingTimes(booking);
+  const dateTime = (date: Date) => date.toISOString().replace(/Z$/, "");
+  return {
+    subject: booking.link_title || "Meeting",
+    body: { contentType: "text", content: meetingDescription(booking) },
+    start: { dateTime: dateTime(start), timeZone: "UTC" },
+    end: { dateTime: dateTime(end), timeZone: "UTC" },
+    ...(create
+      ? {
+          attendees: [
+            {
+              emailAddress: { address: booking.email, name: booking.name },
+              type: "required",
+            },
+          ],
+          isOnlineMeeting: true,
+          onlineMeetingProvider: "teamsForBusiness",
+          transactionId: booking.id,
+        }
+      : {}),
+  };
+}

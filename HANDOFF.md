@@ -12,9 +12,10 @@ Keep production inventory in a private password manager or operations system.
 - A Cloudflare Worker serves the API.
 - D1 stores application data.
 - R2 stores brand assets.
-- Cloudflare Email Sending sends transactional messages.
+- Gmail, Outlook, or optional Cloudflare Email Sending sends transactional messages.
 - Cloudflare Access protects administrative routes.
 - Turnstile protects the public booking form.
+- Google Calendar and Microsoft Graph create provider-managed meetings.
 
 GitHub Actions runs CI only. It does not deploy the Worker or Pages site.
 
@@ -58,14 +59,14 @@ pnpm deploy:api
 Set these as plain Worker variables in Cloudflare. They are configuration, not
 authentication secrets, but production values must still stay out of Git:
 
-| Variable | Example | Purpose |
-| --- | --- | --- |
-| `APP_URL` | `https://app.example.com` | Public frontend origin |
-| `BOOTSTRAP_OWNER_EMAIL` | `owner@example.com` | First workspace owner |
-| `FROM_EMAIL` | `Slotloom <notifications@example.com>` | Verified sender |
-| `TEAM_DOMAIN` | `https://your-team.cloudflareaccess.com` | Access team domain |
-| `POLICY_AUD` | `REPLACE_WITH_ACCESS_AUD` | Access application audience |
-| `TURNSTILE_SITE_KEY` | `REPLACE_WITH_TURNSTILE_SITE_KEY` | Public widget key |
+| Variable                | Example                                  | Purpose                                   |
+| ----------------------- | ---------------------------------------- | ----------------------------------------- |
+| `APP_URL`               | `https://app.example.com`                | Public frontend origin                    |
+| `BOOTSTRAP_OWNER_EMAIL` | `owner@example.com`                      | First workspace owner                     |
+| `FROM_EMAIL`            | `Slotloom <notifications@example.com>`   | Optional verified sender for Worker Email |
+| `TEAM_DOMAIN`           | `https://your-team.cloudflareaccess.com` | Access team domain                        |
+| `POLICY_AUD`            | `REPLACE_WITH_ACCESS_AUD`                | Access application audience               |
+| `TURNSTILE_SITE_KEY`    | `REPLACE_WITH_TURNSTILE_SITE_KEY`        | Public widget key                         |
 
 Store `TURNSTILE_SECRET` only as an encrypted Worker secret:
 
@@ -75,6 +76,21 @@ pnpm exec wrangler secret put TURNSTILE_SECRET
 
 The Turnstile site key is intentionally public in the browser. The secret key
 must never be committed or configured as a plain variable.
+
+Calendar OAuth uses one additional Worker secret as the root encryption key.
+Generate 32 random bytes, keep a recovery copy in a password manager, and enter
+the base64 value into Wrangler's interactive prompt:
+
+```sh
+openssl rand -base64 32
+pnpm exec wrangler secret put OAUTH_ENCRYPTION_KEY
+```
+
+Do not put this value in D1, Pages variables, `wrangler.jsonc`, or Git. Slotloom
+uses it with JOSE compact JWE and AES-256-GCM to encrypt provider client secrets,
+access tokens, refresh tokens, and temporary PKCE verifiers before D1 storage.
+Losing or replacing the key makes existing encrypted provider data unreadable;
+remove and reconnect the integrations if that happens.
 
 ## Cloudflare Access
 
@@ -100,9 +116,107 @@ Worker secret. Add a new custom hostname to the widget before moving traffic.
 
 ## Email Sending
 
-Verify a sender domain in Cloudflare Email Sending and bind it as `EMAIL` in
-the Worker. Configure `FROM_EMAIL` with an address permitted by that verified
-domain. Keep DNS ownership and verification details outside this repository.
+Cloudflare Email Sending is optional. To make it available, verify a sender
+domain, keep the `EMAIL` binding in the Worker configuration, and configure
+`FROM_EMAIL` with an address permitted by that domain. Remove the `send_email`
+block from a private Wrangler configuration when an installation will use only
+OAuth mailboxes.
+
+The workspace owner selects **Cloudflare Worker Email**, **Connected Google
+Gmail**, or **Connected Microsoft Outlook** in **Calendar and email
+integrations**. When an OAuth mailbox is selected, the owner may separately
+enable Worker Email as a fallback. Slotloom never changes transports silently
+unless that fallback is enabled.
+
+## Google Meet OAuth
+
+The callback URL is shown and can be copied from **Calendar and email integrations** in
+Slotloom. It uses `APP_URL`, so it is the Pages or custom app hostname, not the
+Worker URL.
+
+1. In Google Cloud, create or select a project and enable the Google Calendar
+   API and Gmail API.
+2. Configure the Google Auth Platform consent screen. Choose an External audience
+   if Google accounts outside one Workspace organization should connect. While
+   the app is in testing, add each permitted account as a test user.
+3. Create an OAuth client with application type **Web application**.
+4. Add the exact Slotloom Google callback URL as an authorized redirect URI.
+5. Copy the client ID and client secret into **Calendar and email integrations → Google
+   Meet** in Slotloom, then save.
+6. Each owner, admin, or member selects **Connect Google Meet** and approves
+   identity, owned-calendar event access, and the narrow `gmail.send` scope.
+
+Slotloom requests offline access so it can refresh tokens without asking the
+organizer to sign in for every meeting. It creates a Google Calendar event with
+Google Meet conference data and sends attendee updates from Google. For an
+External app in Testing status, Google may expire refresh tokens for these
+calendar scopes after seven days. Publish and complete any required verification
+before relying on the integration in production. Google classifies
+`gmail.send` as a sensitive scope, so a public OAuth application may require
+additional verification. Existing connections must reauthorize after upgrading
+to grant email delivery.
+
+## Microsoft Teams OAuth
+
+1. In Microsoft Entra admin center, open **App registrations** and create an app.
+2. To allow accounts from other organizations and personal Microsoft accounts,
+   choose the corresponding multi-tenant supported-account option and use
+   `common` as the Slotloom tenant value. For one organization only, use its
+   Directory (tenant) ID instead.
+3. Add a **Web** redirect URI using the exact Microsoft callback URL copied from
+   Slotloom.
+4. Under API permissions, add delegated Microsoft Graph permissions
+   `User.Read`, `Calendars.ReadWrite`, and `Mail.Send`. The authorization request
+   also includes `openid`, `profile`, `email`, and `offline_access`.
+5. Create a client secret and immediately copy its **Value**, not its Secret ID,
+   into **Calendar and email integrations → Microsoft Teams** with the application client
+   ID and tenant value.
+6. Each owner, admin, or member selects **Connect Microsoft Teams** and consents.
+
+Existing Microsoft connections must reauthorize after upgrading to grant
+`Mail.Send`.
+
+Account authorization and Teams meeting availability are separate. An account
+can complete OAuth but still be unable to create a Teams meeting if its tenant,
+calendar, policy, or license does not support Teams online meetings.
+
+## Organizer selection and meeting lifecycle
+
+- A response may use the workspace default, Google Meet, Microsoft Teams, or a
+  manual HTTPS meeting link.
+- Slotloom first uses the assigned organizer's active connection for the chosen
+  provider. If that person is not connected, it falls back to an active owner
+  connection.
+- **Confirm and invite** creates the provider calendar event and meeting URL.
+- Google or Microsoft sends the single provider-managed invitation. Slotloom
+  does not send a second confirmation for that event.
+- Time changes update the same provider event. Cancellation removes that event.
+- Google or Microsoft sends the native calendar invitation, so Slotloom does not
+  attach a duplicate ICS file for provider-managed meetings. Manual links retain
+  Slotloom's ICS attachment.
+
+## Transactional email routing
+
+- Availability receipts, reminders, follow-ups, and manual meeting details use
+  the delivery method selected by the workspace owner.
+- OAuth email first uses the assigned organizer's connected account for the
+  selected provider. If unavailable, it uses an active owner connection.
+- Worker Email is used directly when selected, or after OAuth failure only when
+  the owner enabled fallback.
+- Provider meeting invitations, reschedules, and cancellations remain owned by
+  Google Calendar or Microsoft Graph to prevent duplicate messages.
+- Delivery history records the transport and sender address. Provider secrets
+  and tokens remain encrypted with the Worker-held JOSE root key.
+- Disconnecting an account removes its encrypted tokens from D1. Existing remote
+  calendar events remain until cancelled at the provider.
+
+Provider client IDs and tenant IDs are non-secret and are visible in the owner
+UI. Provider client secrets are write-only. No Google or Microsoft credentials
+belong in Worker or Pages variables.
+
+Before changing the Pages/custom app domain, update `APP_URL` and add the two
+new callback URLs to Google and Microsoft. Keep the old callbacks during the DNS
+transition, then remove them after traffic has moved.
 
 ## Pages deployment
 
@@ -112,7 +226,6 @@ Connect the Pages project to the repository through the Cloudflare dashboard:
 - Build command: `pnpm build`
 - Output directory: `dist`
 - Required variable: `BACKEND_URL=https://example-slotloom-api.example-account.workers.dev`
-- Optional build pin: `PNPM_VERSION=10.28.0`
 
 Deploy Pages from the Cloudflare UI. Do not add a Pages deployment step to
 GitHub Actions.
@@ -132,6 +245,7 @@ Commit only example values. In particular, never commit:
 - live Worker, Pages, Access, or custom-domain URLs
 - real owner, sender, member, or administrator email addresses
 - Access audiences, API tokens, Turnstile secrets, or other credentials
+- OAuth encryption keys, provider client secrets, access tokens, or refresh tokens
 - output from `wrangler whoami`, deploy, resource-list, or secret-list commands
 
 If a credential is ever committed, removing the text is not enough. Rotate it,

@@ -11,31 +11,18 @@ export interface Env {
   DB: D1Database;
   BRAND_ASSETS?: R2Bucket;
   NOTIFICATION_HUB?: DurableObjectNamespace;
-  EMAIL?: { send(message: MailMessage): Promise<{ messageId: string }> };
+  EMAIL?: SendEmail;
   ADMIN_TOKEN?: string;
   TEAM_DOMAIN: string;
   POLICY_AUD: string;
   BOOTSTRAP_OWNER_EMAIL: string;
   TURNSTILE_SECRET?: string;
   TURNSTILE_SITE_KEY?: string;
-  FROM_EMAIL: string;
+  OAUTH_ENCRYPTION_KEY?: string;
+  FROM_EMAIL?: string;
   APP_URL: string;
 }
 
-export type MailMessage = {
-  to: string;
-  from: string | { email: string; name?: string };
-  replyTo?: string;
-  subject: string;
-  text: string;
-  html: string;
-  attachments?: Array<{
-    content: string;
-    filename: string;
-    type: string;
-    disposition: "attachment" | "inline";
-  }>;
-};
 export type WorkspaceBrand = {
   name: string;
   tagline: string;
@@ -61,9 +48,14 @@ export async function getWorkspaceBrand(env: Env): Promise<WorkspaceBrand> {
   return {
     name: values.app_name || DEFAULT_APP_NAME,
     tagline: values.brand_tagline || DEFAULT_TAGLINE,
-    logo: values.brand_logo_url || values.brand_mark_url || "/brand/logo-light.svg",
-    logoDark: values.brand_logo_dark_url || values.brand_logo_url || "/brand/logo-dark.svg",
-    favicon: values.brand_favicon_url || values.brand_mark_url || "/brand/mark.svg",
+    logo:
+      values.brand_logo_url || values.brand_mark_url || "/brand/logo-light.svg",
+    logoDark:
+      values.brand_logo_dark_url ||
+      values.brand_logo_url ||
+      "/brand/logo-dark.svg",
+    favicon:
+      values.brand_favicon_url || values.brand_mark_url || "/brand/mark.svg",
     primaryColor: values.brand_primary_color || "#2563eb",
     accentColor: values.brand_accent_color || "#7c3aed",
   };
@@ -106,6 +98,12 @@ export type BookingRow = {
   meeting_url: string | null;
   meeting_notes: string | null;
   meeting_sent_at: string | null;
+  meeting_provider?: string | null;
+  meeting_provider_preference?: string | null;
+  meeting_provider_event_id?: string | null;
+  meeting_provider_connection_id?: string | null;
+  meeting_provider_synced_at?: string | null;
+  meeting_provider_account?: string | null;
   assigned_to: string | null;
   booking_link_id: string;
   created_at: string;
@@ -464,6 +462,11 @@ export function normalizeBooking(row: BookingRow) {
     meetingUrl: row.meeting_url,
     meetingNotes: row.meeting_notes,
     meetingSentAt: row.meeting_sent_at,
+    meetingProvider: row.meeting_provider,
+    meetingProviderPreference: row.meeting_provider_preference || "workspace",
+    meetingProviderEventId: row.meeting_provider_event_id,
+    meetingProviderSyncedAt: row.meeting_provider_synced_at,
+    meetingProviderAccount: row.meeting_provider_account || null,
     assignedTo: row.assigned_to,
     bookingLinkId: row.booking_link_id,
     linkTitle: row.link_title,
@@ -560,6 +563,7 @@ export async function getBooking(env: Env, id: string) {
   return env.DB.prepare(
     `SELECT b.*, l.title AS link_title, l.slug AS link_slug, l.created_by AS link_created_by,
     l.duration_minutes,
+    (SELECT provider_email FROM calendar_connections c WHERE c.id=b.meeting_provider_connection_id) AS meeting_provider_account,
     (SELECT COUNT(*) FROM email_events e WHERE e.booking_id = b.id AND e.status = 'sent') AS email_count
     FROM bookings b LEFT JOIN booking_links l ON l.id = b.booking_link_id WHERE b.id = ?`,
   )
@@ -622,15 +626,7 @@ export async function createNotification(
   await env.DB.prepare(
     "INSERT INTO notifications (id,user_email,type,title,body,action_url,created_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(
-      id,
-      userEmail,
-      type,
-      title,
-      body,
-      actionUrl || null,
-      createdAt,
-    )
+    .bind(id, userEmail, type, title, body, actionUrl || null, createdAt)
     .run();
   if (env.NOTIFICATION_HUB) {
     const notification = {
@@ -712,7 +708,10 @@ export function emailContent(
   const selected = messages[template] || messages.received;
   const contact = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
   const actionHtml =
-    booking.meeting_url && ["meeting_details", "rescheduled_confirmation", "reminder"].includes(template)
+    booking.meeting_url &&
+    ["meeting_details", "rescheduled_confirmation", "reminder"].includes(
+      template,
+    )
       ? `<p><a href="${escapeHtml(booking.meeting_url)}">Join the meeting</a></p>`
       : `<p><a href="${escapeHtml(bookingPage)}">Choose another time</a></p>`;
   return {
@@ -746,17 +745,20 @@ export function replaceVariables(
 }
 
 const calendarDate = (value: Date) =>
-  value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  value
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 const calendarText = (value: string) =>
-  value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/([,;])/g, "\\$1");
-const base64Text = (value: string) => {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-};
-
-export function calendarInvite(booking: BookingRow, env: Env, appName = DEFAULT_APP_NAME) {
+  value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/([,;])/g, "\\$1");
+export function calendarInvite(
+  booking: BookingRow,
+  env: Env,
+  appName = DEFAULT_APP_NAME,
+) {
   const start = new Date(booking.final_starts_at || booking.starts_at);
   const end = new Date(
     start.getTime() + (booking.duration_minutes || 30) * 60_000,
@@ -783,13 +785,16 @@ export function calendarInvite(booking: BookingRow, env: Env, appName = DEFAULT_
     `ORGANIZER;CN=${DEFAULT_APP_NAME}:mailto:${organizer}`,
     `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
     ...(booking.meeting_url
-      ? [`LOCATION:${calendarText(booking.meeting_url)}`, `URL:${booking.meeting_url}`]
+      ? [
+          `LOCATION:${calendarText(booking.meeting_url)}`,
+          `URL:${booking.meeting_url}`,
+        ]
       : []),
     "STATUS:CONFIRMED",
     "END:VEVENT",
     "END:VCALENDAR",
   ];
-  return base64Text(lines.join("\r\n"));
+  return lines.join("\r\n");
 }
 
 export async function renderEmailHtml(
@@ -873,7 +878,10 @@ export async function configuredEmailContent(
       variables.time,
       Boolean(
         booking.meeting_url &&
-          ["meeting_details", "rescheduled_confirmation", "reminder"].includes(template),
+        !booking.meeting_provider_event_id &&
+        ["meeting_details", "rescheduled_confirmation", "reminder"].includes(
+          template,
+        ),
       ),
       template,
       template !== "received" ? variables.meeting_title : undefined,
@@ -881,85 +889,6 @@ export async function configuredEmailContent(
     ),
   };
 }
-export async function sendAndLog(
-  env: Env,
-  booking: BookingRow,
-  template: string,
-) {
-  const eventId = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
-  try {
-    if (!env.EMAIL) throw new Error("Email binding is not configured.");
-    const manageUrl = await createManageUrl(env, booking.id);
-    const content = await configuredEmailContent(
-      env,
-      template,
-      booking,
-      manageUrl,
-    );
-    const attachCalendar = Boolean(
-      booking.meeting_url &&
-        ["meeting_details", "rescheduled_confirmation", "reminder"].includes(template),
-    );
-    const workspaceBrand = await getWorkspaceBrand(env);
-    const result = await env.EMAIL.send({
-      to: booking.email,
-      from: slotloomSender(env.FROM_EMAIL),
-      replyTo: meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL),
-      ...content,
-      ...(attachCalendar
-        ? {
-            attachments: [
-              {
-                content: calendarInvite(booking, env, workspaceBrand.name),
-                filename: "meeting.ics",
-                type: "text/calendar; charset=utf-8; method=REQUEST",
-                disposition: "attachment" as const,
-              },
-            ],
-          }
-        : {}),
-    });
-    await env.DB.prepare(
-      "INSERT INTO email_events (id, booking_id, template, recipient, provider_message_id, status, created_at) VALUES (?, ?, ?, ?, ?, 'sent', ?)",
-    )
-      .bind(
-        eventId,
-        booking.id,
-        template,
-        booking.email,
-        result.messageId,
-        createdAt,
-      )
-      .run();
-    return result.messageId;
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown email error";
-    await env.DB.prepare(
-      "INSERT INTO email_events (id, booking_id, template, recipient, status, error, created_at) VALUES (?, ?, ?, ?, 'failed', ?, ?)",
-    )
-      .bind(
-        eventId,
-        booking.id,
-        template,
-        booking.email,
-        message.slice(0, 1000),
-        createdAt,
-      )
-      .run();
-    await createNotification(
-      env,
-      meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL),
-      "email.failed",
-      "Email delivery failed",
-      `The ${template.replaceAll("_", " ")} email to ${booking.email} could not be delivered.`,
-      `/admin/requests?open=${booking.id}`,
-    );
-    throw error;
-  }
-}
-
 export async function recordUserActivity(
   env: Env,
   actor: string,

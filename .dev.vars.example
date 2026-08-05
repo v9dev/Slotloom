@@ -1,5 +1,6 @@
 ADMIN_TOKEN=replace-with-a-long-random-value
 BOOTSTRAP_OWNER_EMAIL=owner@example.com
+# Optional when the workspace uses only connected Gmail or Outlook delivery.
 FROM_EMAIL=Meetings <meetings@example.com>
 APP_URL=http://localhost:5173
 # Cloudflare Access is not required locally. Configure these in production.
@@ -7,3 +8,5 @@ TEAM_DOMAIN=
 POLICY_AUD=
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET=
+# Generate 32 random bytes and encode them as base64. Never commit the value.
+OAUTH_ENCRYPTION_KEY=replace-with-a-base64-encoded-32-byte-key

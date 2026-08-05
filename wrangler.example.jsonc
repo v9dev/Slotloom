@@ -10,34 +10,35 @@
       "binding": "DB",
       "database_name": "example-slotloom-db",
       "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "BRAND_ASSETS",
-      "bucket_name": "example-slotloom-assets"
-    }
+      "bucket_name": "example-slotloom-assets",
+    },
   ],
+  // Optional when every workspace email is sent through connected OAuth mailboxes.
   "send_email": [
     {
-      "name": "EMAIL"
-    }
+      "name": "EMAIL",
+    },
   ],
   "durable_objects": {
     "bindings": [
       {
         "name": "NOTIFICATION_HUB",
-        "class_name": "NotificationHub"
-      }
-    ]
+        "class_name": "NotificationHub",
+      },
+    ],
   },
   "exports": {
     "NotificationHub": {
       "type": "durable-object",
-      "storage": "sqlite"
-    }
+      "storage": "sqlite",
+    },
   },
   "triggers": { "crons": ["17 2 * * *"] },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 }
