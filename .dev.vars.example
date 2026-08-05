@@ -1,5 +1,5 @@
 ADMIN_TOKEN=replace-with-a-long-random-value
-BOOTSTRAP_OWNER_EMAIL=local-development
+BOOTSTRAP_OWNER_EMAIL=owner@example.com
 FROM_EMAIL=Meetings <meetings@example.com>
 APP_URL=http://localhost:5173
 # Cloudflare Access is not required locally. Configure these in production.

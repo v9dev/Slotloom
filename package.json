@@ -22,13 +22,14 @@
     "dev:api": "wrangler dev --local",
     "dev:setup": "node scripts/setup-dev-env.mjs",
     "build": "tsc -b && vite build",
+    "check:public": "node scripts/check-public-repo.mjs",
     "check:structure": "node scripts/check-file-size.mjs",
     "deploy:api": "wrangler deploy",
     "typecheck": "pnpm check:structure && tsc -b --pretty false",
     "test": "vitest run",
-    "ci": "pnpm typecheck && pnpm test && pnpm build && pnpm exec wrangler deploy --dry-run",
-    "db:migrate:local": "wrangler d1 migrations apply example-slotloom-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply example-slotloom-db --remote"
+    "ci": "pnpm check:public && pnpm typecheck && pnpm test && pnpm build && pnpm exec wrangler deploy --dry-run --config wrangler.example.jsonc",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

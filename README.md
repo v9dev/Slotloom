@@ -57,6 +57,7 @@ git clone https://github.com/v9dev/Slotloom.git
 cd Slotloom
 pnpm install
 cp .dev.vars.example .dev.vars
+cp wrangler.example.jsonc wrangler.jsonc
 pnpm dev:setup
 pnpm db:migrate:local
 pnpm dev
@@ -72,6 +73,8 @@ WebSocket traffic to the local Worker on port `8787`.
 - Worker secret: optional encrypted `TURNSTILE_SECRET`
 - Pages variables: `BACKEND_URL` and `PNPM_VERSION=10.28.0`
 - Local-only authentication: `ADMIN_TOKEN` in the ignored `.dev.vars` file
+- Local deployment bindings: copy `wrangler.example.jsonc` to the ignored
+  `wrangler.jsonc`, then add values from your own Cloudflare account
 
 Branding and booking schedules are managed in the application, not through
 environment variables. See the [deployment handover](HANDOFF.md) for provisioning,
@@ -96,8 +99,8 @@ publish `dist`.
 pnpm run ci
 ```
 
-This runs structure checks, TypeScript, tests, the production build, and a
-Wrangler deployment dry-run.
+This runs the public-data guard, structure checks, TypeScript, tests, the
+production build, and a Wrangler deployment dry-run against example bindings.
 
 ## Project documentation
 

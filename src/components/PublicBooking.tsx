@@ -329,7 +329,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   <TurnstileWidget
                     key={turnstileAttempt}
                     siteKey={data.turnstileSiteKey}
-                    onToken=REPLACE_WITH_SECRET
+                    onToken={setTurnstileToken}
                   />
                 )}
                 {error && (

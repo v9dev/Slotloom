@@ -21,7 +21,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check:public
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm exec wrangler deploy --dry-run
+      - run: pnpm exec wrangler deploy --dry-run --config wrangler.example.jsonc
