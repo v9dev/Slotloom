@@ -4,23 +4,21 @@ import { createElement } from "react";
 import { SlotloomEmail } from "../src/emails/SlotloomEmail";
 import { presentationFor } from "../src/emails/presentation";
 
+const DEFAULT_APP_NAME = "Slotloom";
+
 export interface Env {
   DB: D1Database;
   BRAND_ASSETS?: R2Bucket;
   NOTIFICATION_HUB?: DurableObjectNamespace;
   EMAIL?: { send(message: MailMessage): Promise<{ messageId: string }> };
-  ADMIN_TOKEN: string;
-  ALLOW_ADMIN_TOKEN: string;
+  ADMIN_TOKEN?: string;
   TEAM_DOMAIN: string;
   POLICY_AUD: string;
   BOOTSTRAP_OWNER_EMAIL: string;
   TURNSTILE_SECRET?: string;
   TURNSTILE_SITE_KEY?: string;
-  APP_NAME: string;
-  ORGANIZER_EMAIL: string;
   FROM_EMAIL: string;
   APP_URL: string;
-  TIME_ZONE: string;
 }
 
 export type MailMessage = {
@@ -55,7 +53,7 @@ export async function getWorkspaceBrand(env: Env): Promise<WorkspaceBrand> {
     rows.results.map((row) => [row.setting_key, row.setting_value]),
   );
   return {
-    name: values.app_name || env.APP_NAME,
+    name: values.app_name || DEFAULT_APP_NAME,
     tagline: values.brand_tagline || "Scheduling, without the overhead.",
     logo: values.brand_logo_url || values.brand_mark_url || "/brand/logo-light.svg",
     logoDark: values.brand_logo_dark_url || values.brand_logo_url || "/brand/logo-dark.svg",
@@ -503,7 +501,8 @@ export async function authorizeAdmin(
       return null;
     }
   }
-  if (env.ALLOW_ADMIN_TOKEN !== "true") return null;
+  const hostname = new URL(request.url).hostname;
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) return null;
   const supplied =
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
     readWebSocketAdminToken(request) ||
@@ -564,9 +563,9 @@ export async function getBooking(env: Env, id: string) {
 
 export function meetingOwner(
   booking: Pick<BookingRow, "assigned_to" | "link_created_by">,
-  organizerEmail: string,
+  ownerEmail: string,
 ) {
-  return booking.assigned_to || booking.link_created_by || organizerEmail;
+  return booking.assigned_to || booking.link_created_by || ownerEmail;
 }
 
 export async function recordActivity(
@@ -660,7 +659,7 @@ export function emailContent(
   manageUrl?: string,
 ) {
   const startsAt = booking.final_starts_at || booking.starts_at;
-  const time = formatMeetingTime(startsAt, env.TIME_ZONE || "UTC");
+  const time = formatMeetingTime(startsAt, booking.time_zone || "UTC");
   const bookingPage =
     manageUrl ||
     `${env.APP_URL.replace(/\/$/, "")}/book/${booking.link_slug || "consultation"}`;
@@ -705,15 +704,15 @@ export function emailContent(
     },
   };
   const selected = messages[template] || messages.received;
-  const contact = meetingOwner(booking, env.ORGANIZER_EMAIL);
+  const contact = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
   const actionHtml =
     booking.meeting_url && ["meeting_details", "rescheduled_confirmation", "reminder"].includes(template)
       ? `<p><a href="${escapeHtml(booking.meeting_url)}">Join the meeting</a></p>`
       : `<p><a href="${escapeHtml(bookingPage)}">Choose another time</a></p>`;
   return {
     subject: selected.subject,
-    text: `Hi ${booking.name},\n\n${selected.intro}${selected.action || ""}\n\nChoose another time if needed: ${bookingPage}\n\nContact: ${contact}\n\n${env.APP_NAME}`,
-    html: `<p>Hi ${escapeHtml(booking.name)},</p><p>${escapeHtml(selected.intro)}</p>${actionHtml}<p>Contact: <a href="mailto:${escapeHtml(contact)}">${escapeHtml(contact)}</a></p><p>${escapeHtml(env.APP_NAME)}</p>`,
+    text: `Hi ${booking.name},\n\n${selected.intro}${selected.action || ""}\n\nChoose another time if needed: ${bookingPage}\n\nContact: ${contact}\n\n${DEFAULT_APP_NAME}`,
+    html: `<p>Hi ${escapeHtml(booking.name)},</p><p>${escapeHtml(selected.intro)}</p>${actionHtml}<p>Contact: <a href="mailto:${escapeHtml(contact)}">${escapeHtml(contact)}</a></p><p>${escapeHtml(DEFAULT_APP_NAME)}</p>`,
   };
 }
 export async function createManageUrl(env: Env, bookingId: string) {
@@ -751,12 +750,12 @@ const base64Text = (value: string) => {
   return btoa(binary);
 };
 
-export function calendarInvite(booking: BookingRow, env: Env, appName = env.APP_NAME) {
+export function calendarInvite(booking: BookingRow, env: Env, appName = DEFAULT_APP_NAME) {
   const start = new Date(booking.final_starts_at || booking.starts_at);
   const end = new Date(
     start.getTime() + (booking.duration_minutes || 30) * 60_000,
   );
-  const organizer = meetingOwner(booking, env.ORGANIZER_EMAIL);
+  const organizer = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
   const title = booking.link_title || "Meeting";
   const description = booking.meeting_url
     ? `Join the meeting: ${booking.meeting_url}`
@@ -808,7 +807,7 @@ export async function renderEmailHtml(
       heading: presentation.heading,
       label: presentation.label,
       message: text,
-      appName: workspaceBrand?.name || env.APP_NAME,
+      appName: workspaceBrand?.name || DEFAULT_APP_NAME,
       logoUrl: new URL(
         workspaceBrand?.logo || "/brand/logo-light.svg",
         `${env.APP_URL.replace(/\/$/, "")}/`,
@@ -838,11 +837,11 @@ export async function configuredEmailContent(
   if (!configured) return emailContent(template, booking, env, manageUrl);
   if (!configured.enabled) throw new Error("This email template is disabled.");
   const startsAt = booking.final_starts_at || booking.starts_at;
-  const contact = meetingOwner(booking, env.ORGANIZER_EMAIL);
+  const contact = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
   const workspaceBrand = await getWorkspaceBrand(env);
   const variables = {
     name: booking.name,
-    time: formatMeetingTime(startsAt, env.TIME_ZONE || "UTC"),
+    time: formatMeetingTime(startsAt, booking.time_zone || "UTC"),
     contact,
     meeting_url: booking.meeting_url || "",
     manage_url: manageUrl,
@@ -899,7 +898,7 @@ export async function sendAndLog(
     const result = await env.EMAIL.send({
       to: booking.email,
       from: env.FROM_EMAIL,
-      replyTo: meetingOwner(booking, env.ORGANIZER_EMAIL),
+      replyTo: meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL),
       ...content,
       ...(attachCalendar
         ? {
@@ -944,7 +943,7 @@ export async function sendAndLog(
       .run();
     await createNotification(
       env,
-      meetingOwner(booking, env.ORGANIZER_EMAIL),
+      meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL),
       "email.failed",
       "Email delivery failed",
       `The ${template.replaceAll("_", " ")} email to ${booking.email} could not be delivered.`,

@@ -77,15 +77,11 @@ Set these under **Workers & Pages → example-slotloom-api → Settings → Vari
 
 | Variable | Meaning |
 |---|---|
-| `APP_NAME` | Safe fallback name used before workspace branding is saved. |
-| `ORGANIZER_EMAIL` | Fallback reply-to address when a response has no assigned owner or link creator. |
 | `FROM_EMAIL` | Verified sender, for example `Meetings <meetings@your-domain.com>`. |
 | `APP_URL` | Public Pages URL, used for secure management links, images and email actions. |
-| `TIME_ZONE` | Fallback IANA timezone such as `UTC`, `Asia/Kolkata`, or `America/New_York`. |
 | `TEAM_DOMAIN` | Your Cloudflare Access organization URL, such as `https://your-team.cloudflareaccess.com`. This is not your website domain. The Worker uses it to download Access signing keys and validate who signed in. |
 | `POLICY_AUD` | The Audience tag from the Cloudflare Access application. It binds accepted login tokens to this specific protected application. |
-| `BOOTSTRAP_OWNER_EMAIL` | Email allowed to become the first workspace owner. It must exactly match the authenticated Access email. |
-| `ALLOW_ADMIN_TOKEN` | Local fallback switch. Keep `false` in production. |
+| `BOOTSTRAP_OWNER_EMAIL` | Email allowed to become the first workspace owner. It must exactly match the authenticated Access email and is the last-resort contact for legacy unassigned records. |
 | `TURNSTILE_SITE_KEY` | Public Turnstile widget key. Configure it together with `TURNSTILE_SECRET`, or leave both absent. |
 
 Secret:
@@ -94,11 +90,13 @@ Secret:
 |---|---|
 | `TURNSTILE_SECRET` | Private Turnstile verification key. Store as an encrypted Worker secret, never in Git. |
 
-`ADMIN_TOKEN` is only for local development and must not be configured in production.
+`ADMIN_TOKEN` is only for local development. The Worker accepts it only on
+loopback request hosts and rejects it on every deployed hostname.
 
-Scheduling horizon, weekdays and time windows are not Worker environment
-variables. Manage them under **Admin → Links**; each booking link stores its own
-availability rules in D1.
+Application branding and scheduling configuration are not Worker environment
+variables. Manage branding under **Settings → Workspace branding** and timezone,
+horizon, weekdays and time windows under **Admin → Links**. Each visitor's chosen
+timezone is stored with the response and used when formatting their emails.
 
 ### Pages variables
 
@@ -108,10 +106,6 @@ Set these in the Pages project for both production and previews where appropriat
 |---|---|
 | `BACKEND_URL` | Deployed Worker origin, such as `https://example-slotloom-api.account.workers.dev`. |
 | `PNPM_VERSION` | Pages build-tool version. Use `10.28.0` to match this repository. |
-| `VITE_APP_NAME` | Build-time fallback name shown before runtime branding loads. |
-| `VITE_BRAND_LOGO` | Build-time fallback logo for light backgrounds. |
-| `VITE_BRAND_LOGO_DARK` | Build-time fallback logo for dark backgrounds. |
-| `VITE_BRAND_FAVICON` | Build-time fallback favicon. |
 
 The committed `.node-version` pins Pages builds to Node.js `22.22.2`. Do not point
 preview deployments at the production Worker unless preview traffic is allowed to

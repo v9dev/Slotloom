@@ -158,12 +158,12 @@ export async function adminRoutes(
       name: "Preview visitor",
       time: formatMeetingTime(
         new Date(Date.now() + 86_400_000).toISOString(),
-        env.TIME_ZONE,
+        "UTC",
       ),
       contact: actor,
       meeting_url: "https://meet.example.com/example",
       manage_url: `${env.APP_URL}/manage/example`,
-      app_name: env.APP_NAME,
+      app_name: (await getWorkspaceBrand(env)).name,
     };
     const subject = replaceVariables(template.subject, variables);
     const text = replaceVariables(template.text_body, variables).replaceAll(
@@ -179,7 +179,7 @@ export async function adminRoutes(
         email: actor,
         starts_at: new Date(Date.now() + 86_400_000).toISOString(),
         final_starts_at: null,
-        time_zone: env.TIME_ZONE,
+        time_zone: "UTC",
         phone: null,
         company: null,
         message: null,
@@ -233,7 +233,7 @@ export async function adminRoutes(
     };
     const settings = [
       ["data_retention_days", String(retention)],
-      ["app_name", safeText(body.appName, 80) || env.APP_NAME],
+      ["app_name", safeText(body.appName, 80) || "Slotloom"],
       ["brand_tagline", safeText(body.brandTagline, 160)],
       ["brand_logo_url", safeAssetUrl(body.brandLogoUrl, "/brand/logo-light.svg")],
       ["brand_logo_dark_url", safeAssetUrl(body.brandLogoDarkUrl, "/brand/logo-dark.svg")],

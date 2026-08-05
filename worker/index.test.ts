@@ -8,10 +8,8 @@ import {
 import { turnstileConfiguration, verifyTurnstile } from "./domain";
 
 const env = {
-  APP_NAME: "Slotloom",
   APP_URL: "https://meet.example.com",
-  TIME_ZONE: "Asia/Kolkata",
-  ORGANIZER_EMAIL: "owner@example.com",
+  BOOTSTRAP_OWNER_EMAIL: "owner@example.com",
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -107,7 +105,6 @@ describe("authorizeAdmin", () => {
       headers: { authorization: "Bearer local-secret" },
     });
     const identity = await authorizeAdmin(request, {
-      ALLOW_ADMIN_TOKEN: "true",
       ADMIN_TOKEN: "local-secret",
       TEAM_DOMAIN: "",
       POLICY_AUD: "",
@@ -120,7 +117,6 @@ describe("authorizeAdmin", () => {
       headers: { authorization: "Bearer local-secret" },
     });
     const identity = await authorizeAdmin(request, {
-      ALLOW_ADMIN_TOKEN: "false",
       ADMIN_TOKEN: "local-secret",
       TEAM_DOMAIN: "",
       POLICY_AUD: "",
@@ -189,7 +185,7 @@ describe("Turnstile", () => {
 });
 
 describe("meetingOwner", () => {
-  it("prefers the assignee, then link creator, then organizer fallback", () => {
+  it("prefers the assignee, then link creator, then owner fallback", () => {
     expect(
       meetingOwner(
         {

@@ -1,8 +1,8 @@
 export const brand = {
-  name: import.meta.env.VITE_APP_NAME || "Slotloom",
-  logo: import.meta.env.VITE_BRAND_LOGO || "/brand/logo-light.svg",
-  logoDark: import.meta.env.VITE_BRAND_LOGO_DARK || "/brand/logo-dark.svg",
-  favicon: import.meta.env.VITE_BRAND_FAVICON || "/brand/mark.svg",
+  name: "Slotloom",
+  logo: "/brand/logo-light.svg",
+  logoDark: "/brand/logo-dark.svg",
+  favicon: "/brand/mark.svg",
   tagline: "Scheduling, without the overhead.",
   primaryColor: "#2563eb",
   accentColor: "#7c3aed",

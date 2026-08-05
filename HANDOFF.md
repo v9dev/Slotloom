@@ -77,7 +77,8 @@ This model is fully white-label and is appropriate for separate organizations or
 ### Email
 
 - Cloudflare Email Sending binding
-- Organizer email used as `Reply-To`
+- Assigned owner or booking-link creator used as `Reply-To`, with the bootstrap
+  owner as a legacy fallback
 - Editable templates stored in D1
 - React Email preview in light and dark modes
 - Templates for availability received, meeting details, rescheduled confirmation, reminder, missed, reschedule and cancellation
@@ -144,10 +145,10 @@ The structure check enforces a hard 1,000-line maximum. `worker/index.ts` is cur
 
 ### Local
 
-Local development uses a private bearer token only when:
+Local development uses a private bearer token only when the Worker request host
+is `localhost`, `127.0.0.1` or the IPv6 loopback address:
 
 ```env
-ALLOW_ADMIN_TOKEN=true
 ADMIN_TOKEN=REPLACE_WITH_SECRET
 BOOTSTRAP_OWNER_EMAIL=local-development
 TEAM_DOMAIN=
@@ -164,19 +165,19 @@ Cloudflare Access protects `/admin*` and `/api/admin/*`. Access sends `Cf-Access
 TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 POLICY_AUD=REPLACE_WITH_SECRET
 BOOTSTRAP_OWNER_EMAIL=owner@your-domain.com
-ALLOW_ADMIN_TOKEN=false
 ```
 
 `TEAM_DOMAIN` is the Cloudflare Zero Trust organization domain, not the Pages domain, email domain or Worker URL. The Worker loads signing keys from `${TEAM_DOMAIN}/cdn-cgi/access/certs`. The first real Access login email must exactly match `BOOTSTRAP_OWNER_EMAIL`; later users are managed in the team UI.
 
-Never configure `ADMIN_TOKEN` as a production authentication path.
+The Worker rejects `ADMIN_TOKEN` authentication on deployed hostnames even if the
+variable is accidentally present. Never configure it in production.
 
 ## Environment files
 
 - `.dev.vars`: real local Worker values; ignored by Git
 - `.dev.vars.example`: safe local Worker template; committed
-- `.env`: optional real Vite build fallbacks; ignored by Git
-- `.env.example`: safe Vite template; committed
+- the frontend has no required Vite environment variables; repository assets and
+  D1 workspace branding provide its fallbacks
 - Pages `BACKEND_URL`: configure in the Pages dashboard, not in `.env`
 - Production Worker variables/secrets: configure in the Worker dashboard or with Wrangler secrets
 
@@ -186,21 +187,19 @@ Worker variables:
 
 | Name | Purpose |
 |---|---|
-| `APP_NAME` | Fallback name before runtime branding loads |
-| `ORGANIZER_EMAIL` | Fallback organizer and reply address |
 | `FROM_EMAIL` | Verified Cloudflare sender identity |
 | `APP_URL` | Final public Pages origin used in links and email assets |
-| `TIME_ZONE` | Fallback IANA timezone |
 | `TEAM_DOMAIN` | Access organization URL |
 | `POLICY_AUD` | Access application audience |
-| `BOOTSTRAP_OWNER_EMAIL` | First production owner identity |
-| `ALLOW_ADMIN_TOKEN` | Local-token switch; production must be `false` |
+| `BOOTSTRAP_OWNER_EMAIL` | First production owner identity and legacy unassigned contact fallback |
 | `ADMIN_TOKEN` | Local-only bearer token |
 | `TURNSTILE_SITE_KEY` | Public Turnstile site key; configure with the secret or omit both |
 | `TURNSTILE_SECRET` | Encrypted Turnstile secret |
 
-Scheduling horizon, weekdays and time windows are configured per booking link in
-**Admin → Links** and persisted in D1. They are not Worker environment variables.
+Branding is configured under **Settings → Workspace branding**. Scheduling
+timezone, horizon, weekdays and time windows are configured per booking link in
+**Admin → Links**. Visitor timezones are persisted with responses for email
+formatting. None of these are Worker environment variables.
 
 Pages variables:
 
@@ -208,10 +207,6 @@ Pages variables:
 |---|---|
 | `BACKEND_URL` | Deployed Worker origin without a trailing slash |
 | `PNPM_VERSION` | Pages build-tool version; set to `10.28.0` |
-| `VITE_APP_NAME` | Build-time fallback name |
-| `VITE_BRAND_LOGO` | Build-time light logo |
-| `VITE_BRAND_LOGO_DARK` | Build-time dark logo |
-| `VITE_BRAND_FAVICON` | Build-time favicon |
 
 The committed `.node-version` pins both local and Pages builds to Node.js
 `22.22.2`. Pages previews should not use the production `BACKEND_URL` unless it is
@@ -306,15 +301,11 @@ for this account because the named resources already exist.
 
    | Worker name | Value to enter | Where it comes from |
    |---|---|---|
-   | `APP_NAME` | `Slotloom` | chosen application fallback name |
-   | `ORGANIZER_EMAIL` | real organizer email | chosen scheduling owner/reply-to address |
    | `FROM_EMAIL` | for example `Meetings <meetings@your-domain.com>` | sender on a domain onboarded in Email Service |
    | `APP_URL` | final `https://app.example.com` Pages origin, no trailing slash | Pages project after its first UI deployment/custom-domain attachment |
-   | `TIME_ZONE` | for example `Asia/Kolkata` | chosen IANA timezone |
    | `TEAM_DOMAIN` | `https://<team>.app.example.com` | Zero Trust team domain |
    | `POLICY_AUD` | Access application AUD tag | Access self-hosted application details |
    | `BOOTSTRAP_OWNER_EMAIL` | exact owner login email | email allowed by the Access policy |
-   | `ALLOW_ADMIN_TOKEN` | `false` | fixed production safety setting |
    | `TURNSTILE_SITE_KEY` | widget site key | optional Turnstile widget details |
 
    Add `TURNSTILE_SECRET` as an **encrypted secret**, not plain text, using the
@@ -333,12 +324,11 @@ for this account because the named resources already exist.
    - build image: v3
    - production `BACKEND_URL`: `https://example-slotloom-api.thedevimapro.workers.dev`
    - production and preview `PNPM_VERSION`: `10.28.0`
-   - production and preview `VITE_APP_NAME`: `Slotloom`
 
-   `.node-version` supplies Node.js `22.22.2`. The three `VITE_BRAND_*`
-   variables are optional because the repository includes fallback assets. Leave
-   preview `BACKEND_URL` unset until a separate preview Worker exists, unless
-   previews are intentionally allowed to use production data.
+   `.node-version` supplies Node.js `22.22.2`. Repository assets provide the
+   build-time branding fallback and D1 supplies runtime branding. Leave preview
+   `BACKEND_URL` unset until a separate preview Worker exists, unless previews are
+   intentionally allowed to use production data.
 
 10. Attach the frontend domain to Pages and set Worker `APP_URL` to that final HTTPS origin.
 
@@ -415,7 +405,7 @@ The following passed immediately before this handoff:
 
 - structure/file-size check
 - TypeScript project build
-- 7 Vitest tests
+- 9 Vitest tests
 - Vite production build
 - Wrangler deployment dry-run with D1, R2, Email and Durable Object bindings
 - local D1 migrations through `0020`

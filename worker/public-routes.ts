@@ -162,7 +162,7 @@ export async function publicLink(request: Request, env: Env, slug: string) {
   });
   await createNotification(
     env,
-    link.created_by || env.ORGANIZER_EMAIL,
+    link.created_by || env.BOOTSTRAP_OWNER_EMAIL,
     "booking.created",
     "New availability response",
     `${name} selected ${formatMeetingTime(startsAt, link.time_zone)} through ${link.internal_name}.`,
