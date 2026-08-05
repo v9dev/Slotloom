@@ -3,6 +3,7 @@
   "name": "example-slotloom-api",
   "keep_vars": true,
   "main": "worker/index.ts",
+  "tsconfig": "tsconfig.worker.json",
   "compatibility_date": "2026-08-04",
   "d1_databases": [
     {

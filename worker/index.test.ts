@@ -5,7 +5,11 @@ import {
   meetingOwner,
   slotsForSchedule,
 } from "./index";
-import { turnstileConfiguration, verifyTurnstile } from "./domain";
+import {
+  renderEmailHtml,
+  turnstileConfiguration,
+  verifyTurnstile,
+} from "./domain";
 
 const env = {
   APP_URL: "https://meet.example.com",
@@ -96,6 +100,23 @@ describe("emailContent", () => {
     expect(content.html).toContain("https://meet.example.com/");
     expect(content.html).toContain("mailto:owner@example.com");
     expect(content.html).not.toContain("<Taylor & Co>");
+  });
+
+  it("renders the React email template to complete HTML", async () => {
+    const html = await renderEmailHtml(
+      env as never,
+      "Availability received",
+      "Hello Taylor.\n\nWe will follow up shortly.",
+      "owner@example.com",
+      undefined,
+      "https://meet.example.com/manage/example",
+      "Monday, August 10 at 10:00 AM UTC",
+    );
+
+    expect(html).toContain("<!DOCTYPE html");
+    expect(html).toContain("Thanks, we have your preferred time");
+    expect(html).toContain("Hello Taylor.");
+    expect(html).toContain("https://meet.example.com/manage/example");
   });
 });
 
