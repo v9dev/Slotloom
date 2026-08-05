@@ -249,7 +249,8 @@ account `00000000000000000000000000000000`:
 
 - Worker: `example-slotloom-api`
 - Worker origin: `https://example-slotloom-api.thedevimapro.workers.dev`
-- deployed version: `00000000-0000-0000-0000-000000000000`
+- active Worker version: `00000000-0000-0000-0000-000000000000`
+- Wrangler code deployment: `00000000-0000-0000-0000-000000000000`
 - D1: `example-slotloom-db` (`00000000-0000-0000-0000-000000000000`, APAC)
 - remote D1 migrations: all migrations through `0020_complete_white_label.sql`
 - R2: `example-slotloom-assets` (Standard storage)
@@ -265,11 +266,11 @@ and URL formats. The active values now use `APP_URL=https://app.example.com`,
 `FROM_EMAIL=Slotloom <owner@example.com>`. Email Sending is enabled for
 `app.example.com`, and the encrypted `TURNSTILE_SECRET` remained attached.
 
-Delete these obsolete Worker dashboard variables after confirming the correctly
-spelled entries remain: `APP_NAME`, `TIME_ZONE`, `ORGANIZER_EMAIL`,
-`ALLOW_ADMIN_TOKEN`, `FROM_EMAIL `, `TEAM_DOMAIN ` and `TURNSTILE_SITE_KEY `.
-The last three names contain an accidental trailing space. In Pages, delete any
-old `VITE_APP_NAME` or `VITE_BRAND_*` entries; keep `BACKEND_URL` and
+The dashboard cleanup is complete: `APP_NAME`, `TIME_ZONE`, `ORGANIZER_EMAIL`,
+`ALLOW_ADMIN_TOKEN` and malformed duplicates of `FROM_EMAIL`, `TEAM_DOMAIN` and
+`TURNSTILE_SITE_KEY` were deleted. The malformed names contained an accidental
+trailing space; their correctly spelled replacements remain active. In Pages,
+delete any old `VITE_APP_NAME` or `VITE_BRAND_*` entries; keep `BACKEND_URL` and
 `PNPM_VERSION`.
 
 The create commands are retained as recovery/reference steps; do not rerun them
