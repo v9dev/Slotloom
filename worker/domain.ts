@@ -21,8 +21,6 @@ export interface Env {
   FROM_EMAIL: string;
   APP_URL: string;
   TIME_ZONE: string;
-  DAYS_AHEAD: string;
-  SLOT_TIMES: string;
 }
 
 export type MailMessage = {
@@ -240,21 +238,63 @@ export async function verifyTurnstile(
   request: Request,
   env: Env,
 ) {
-  if (!env.TURNSTILE_SECRET) return true;
+  const configuration = turnstileConfiguration(env);
+  if (!configuration.valid) {
+    console.error("Turnstile requires both the site key and secret.");
+    return false;
+  }
+  if (!configuration.enabled) return true;
   if (!token) return false;
   const form = new FormData();
-  form.set("secret", env.TURNSTILE_SECRET);
+  form.set("secret", env.TURNSTILE_SECRET!);
   form.set("response", token);
   const ip = request.headers.get("cf-connecting-ip");
   if (ip) form.set("remoteip", ip);
-  const response = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    { method: "POST", body: form },
-  );
-  const result = await response
-    .json<{ success?: boolean }>()
-    .catch(() => ({}) as { success?: boolean });
-  return Boolean(result.success);
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: form,
+        signal: AbortSignal.timeout(8_000),
+      },
+    );
+    if (!response.ok) return false;
+    const result = await response.json<{
+      success?: boolean;
+      hostname?: string;
+      action?: string;
+      "error-codes"?: string[];
+    }>();
+    const expectedHostname = new URL(env.APP_URL).hostname;
+    const valid = Boolean(
+      result.success &&
+      result.hostname === expectedHostname &&
+      result.action === TURNSTILE_ACTION,
+    );
+    if (!valid)
+      console.warn("Rejected Turnstile token", {
+        hostname: result.hostname,
+        action: result.action,
+        errorCodes: result["error-codes"],
+      });
+    return valid;
+  } catch (error) {
+    console.warn("Turnstile verification failed", error);
+    return false;
+  }
+}
+
+export const TURNSTILE_ACTION = "booking-submit";
+
+export function turnstileConfiguration(env: Env) {
+  const siteKey = env.TURNSTILE_SITE_KEY?.trim() || "";
+  const hasSecret = Boolean(env.TURNSTILE_SECRET?.trim());
+  return {
+    enabled: Boolean(siteKey && hasSecret),
+    siteKey: siteKey || null,
+    valid: Boolean(siteKey) === hasSecret,
+  };
 }
 export function slugify(value: string) {
   return value
@@ -371,41 +411,6 @@ export function slotsForSchedule(
     }
   }
   return slots;
-}
-
-export function availableSlots(env: Env) {
-  const times = (env.SLOT_TIMES || "10:00,14:00")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const rules: RuleRow[] = [1, 2, 3, 4, 5].map((weekday) => ({
-    id: String(weekday),
-    booking_link_id: "legacy",
-    weekday,
-    start_time: times[0],
-    end_time: "23:59",
-  }));
-  const link = {
-    time_zone: env.TIME_ZONE || "UTC",
-    days_ahead: Number(env.DAYS_AHEAD) || 14,
-    minimum_notice_hours: 0,
-    duration_minutes: 30,
-    slot_interval_minutes: 30,
-    buffer_minutes: 0,
-    valid_from: null,
-    valid_until: null,
-  };
-  const generated = slotsForSchedule(link, rules);
-  return generated.filter((slot) =>
-    times.includes(
-      new Intl.DateTimeFormat("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hourCycle: "h23",
-        timeZone: link.time_zone,
-      }).format(new Date(slot.startsAt)),
-    ),
-  );
 }
 
 export function normalizeLink(row: LinkRow, rules: RuleRow[] = []) {

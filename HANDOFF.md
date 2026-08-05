@@ -196,10 +196,11 @@ Worker variables:
 | `BOOTSTRAP_OWNER_EMAIL` | First production owner identity |
 | `ALLOW_ADMIN_TOKEN` | Local-token switch; production must be `false` |
 | `ADMIN_TOKEN` | Local-only bearer token |
-| `TURNSTILE_SITE_KEY` | Public Turnstile site key; empty disables it |
+| `TURNSTILE_SITE_KEY` | Public Turnstile site key; configure with the secret or omit both |
 | `TURNSTILE_SECRET` | Encrypted Turnstile secret |
-| `DAYS_AHEAD` | Legacy fallback scheduling horizon |
-| `SLOT_TIMES` | Legacy fallback slots |
+
+Scheduling horizon, weekdays and time windows are configured per booking link in
+**Admin → Links** and persisted in D1. They are not Worker environment variables.
 
 Pages variables:
 
@@ -313,8 +314,6 @@ for this account because the named resources already exist.
    | `BOOTSTRAP_OWNER_EMAIL` | exact owner login email | email allowed by the Access policy |
    | `ALLOW_ADMIN_TOKEN` | `false` | fixed production safety setting |
    | `TURNSTILE_SITE_KEY` | widget site key | optional Turnstile widget details |
-   | `DAYS_AHEAD` | `14` | chosen legacy fallback |
-   | `SLOT_TIMES` | `10:00,14:00` | chosen legacy fallback |
 
    Add `TURNSTILE_SECRET` as an **encrypted secret**, not plain text, using the
    secret from the same optional Turnstile widget. Configure both Turnstile keys
@@ -341,9 +340,40 @@ for this account because the named resources already exist.
 
 10. Attach the frontend domain to Pages and set Worker `APP_URL` to that final HTTPS origin.
 
-11. Create the Cloudflare Access self-hosted application for `/admin*` and `/api/admin/*`, configure an allow policy, then copy its team domain and audience into the Worker variables.
+11. After the Pages custom domain is active, configure Cloudflare Access:
+
+    - open **Zero Trust → Access controls → Applications**
+    - create a **Self-hosted and private** application
+    - add the custom hostname with `/admin*` and again with `/api/admin/*`
+    - add an Allow policy containing only trusted administrator identities
+    - create the app, then open **Configure → Additional settings** and copy the
+      **Application Audience (AUD) Tag** into Worker `POLICY_AUD`
+    - open **Zero Trust → Settings**, copy the team domain, prefix it with
+      `https://`, and store it as Worker `TEAM_DOMAIN`
+
+    `POLICY_AUD` and `TEAM_DOMAIN` are plain variables. The AUD is unique to this
+    Access application and changes only if the application is deleted/recreated.
 
 12. Sign in once using the exact `BOOTSTRAP_OWNER_EMAIL`, verify the owner record, then add other team users from the dashboard.
+
+13. Optionally enable Turnstile entirely through the Cloudflare dashboard:
+
+    - open **Turnstile → Add widget**
+    - widget name: `Slotloom booking form`
+    - mode: **Managed**
+    - production hostname: final Pages custom hostname, without scheme or path
+    - optionally add the production `app.example.com` hostname
+    - add `localhost` and `127.0.0.1` only for local real-widget testing
+    - leave pre-clearance disabled
+    - copy the generated site key into plain Worker variable
+      `TURNSTILE_SITE_KEY`
+    - copy the generated secret into encrypted Worker secret
+      `TURNSTILE_SECRET`
+
+    Never put either Turnstile value in Pages or Git. Configure both Worker values
+    together or omit both. The Worker rejects partial configuration, calls
+    Siteverify server-side, and validates the hostname against `APP_URL` plus the
+    action `booking-submit`.
 
 For two Cloudflare accounts, keep Pages, Worker, D1, R2, Durable Objects and Access together in the compute account when possible. DNS can remain managed in the domain account, but custom-domain attachment and cross-account proxying must be validated before launch. The stable fallback is the Pages-provided domain for the frontend and the Worker `app.example.com` origin behind the Pages proxy.
 

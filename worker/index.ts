@@ -989,7 +989,6 @@ export default {
 export { NotificationHub } from "./notification-hub";
 
 export {
-  availableSlots,
   authorizeAdmin,
   deviceType,
   emailContent,

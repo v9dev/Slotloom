@@ -43,6 +43,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
   const [sending, setSending] = useState(false);
   const [visitorTimeZone, setVisitorTimeZone] = useState(browserTimeZone());
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
   useEffect(() => {
     api
       .publicLink(slug)
@@ -90,6 +91,10 @@ export default function PublicBooking({ slug }: { slug: string }) {
       });
       setStep("success");
     } catch (e) {
+      if (data?.turnstileSiteKey) {
+        setTurnstileToken("");
+        setTurnstileAttempt((current) => current + 1);
+      }
       setError(
         e instanceof Error ? e.message : "Could not send your availability.",
       );
@@ -180,12 +185,6 @@ export default function PublicBooking({ slug }: { slug: string }) {
                     onChange={(e) => setName(e.target.value)}
                   />
                 </div>
-                {data.turnstileSiteKey && (
-                  <TurnstileWidget
-                    siteKey={data.turnstileSiteKey}
-                    onToken=REPLACE_WITH_SECRET
-                  />
-                )}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email address</Label>
                   <Input
@@ -322,6 +321,13 @@ export default function PublicBooking({ slug }: { slug: string }) {
                     onChange={(e) => setPhone(e.target.value)}
                   />
                 </div>
+                {data.turnstileSiteKey && (
+                  <TurnstileWidget
+                    key={turnstileAttempt}
+                    siteKey={data.turnstileSiteKey}
+                    onToken=REPLACE_WITH_SECRET
+                  />
+                )}
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -331,12 +337,21 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setStep("slot")}
+                    onClick={() => {
+                      setTurnstileToken("");
+                      setTurnstileAttempt((current) => current + 1);
+                      setStep("slot");
+                    }}
                   >
                     <ArrowLeft />
                     Back
                   </Button>
-                  <Button disabled={sending}>
+                  <Button
+                    disabled={
+                      sending ||
+                      Boolean(data.turnstileSiteKey && !turnstileToken)
+                    }
+                  >
                     {sending ? <Loader2 className="animate-spin" /> : <Check />}
                     Submit slot
                   </Button>
@@ -377,21 +392,37 @@ function TurnstileWidget({
   const target = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let cancelled = false;
-    const render = () => {
-      const turnstile = (
+    let widgetId: string | undefined;
+    type TurnstileApi = {
+      render(
+        element: HTMLElement,
+        options: {
+          sitekey: string;
+          action: string;
+          size: "flexible";
+          callback: (token: string) => void;
+          "expired-callback": () => void;
+          "error-callback": () => void;
+        },
+      ): string;
+      remove(widgetId: string): void;
+    };
+    const api = () =>
+      (
         window as typeof window & {
-          turnstile?: {
-            render(
-              element: HTMLElement,
-              options: { sitekey: string; callback: (token: string) => void },
-            ): string;
-          };
+          turnstile?: TurnstileApi;
         }
       ).turnstile;
-      if (!cancelled && target.current && turnstile)
-        turnstile.render(target.current, {
+    const render = () => {
+      const turnstile = api();
+      if (!cancelled && !widgetId && target.current && turnstile)
+        widgetId = turnstile.render(target.current, {
           sitekey: siteKey,
+          action: "booking-submit",
+          size: "flexible",
           callback: onToken,
+          "expired-callback": () => onToken(""),
+          "error-callback": () => onToken(""),
         });
     };
     const existing = document.querySelector<HTMLScriptElement>(
@@ -403,6 +434,7 @@ function TurnstileWidget({
       return () => {
         cancelled = true;
         existing.removeEventListener("load", render);
+        if (widgetId) api()?.remove(widgetId);
       };
     }
     const script = document.createElement("script");
@@ -416,6 +448,7 @@ function TurnstileWidget({
     return () => {
       cancelled = true;
       script.removeEventListener("load", render);
+      if (widgetId) api()?.remove(widgetId);
     };
   }, [siteKey, onToken]);
   return <div ref={target} className="min-h-16" />;

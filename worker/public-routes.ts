@@ -21,6 +21,7 @@ import {
   sha256,
   slotsForSchedule,
   slugify,
+  turnstileConfiguration,
   verifyTurnstile,
   enforcePublicRateLimit,
   type BookingRow,
@@ -36,6 +37,12 @@ export async function publicLink(request: Request, env: Env, slug: string) {
   const link = await getLink(env, slug, true);
   if (!link || link.status !== "active")
     return json({ error: "This booking link is not available." }, 404);
+  const turnstile = turnstileConfiguration(env);
+  if (!turnstile.valid)
+    return json(
+      { error: "Booking security configuration is incomplete." },
+      503,
+    );
   const linkToday = partsAt(new Date(), link.time_zone);
   const localDate = `${linkToday.year}-${linkToday.month}-${linkToday.day}`;
   if (link.valid_until && localDate > link.valid_until)
@@ -62,7 +69,7 @@ export async function publicLink(request: Request, env: Env, slug: string) {
       .run();
     return json({
       link: normalizeLink(link, rules),
-      turnstileSiteKey: env.TURNSTILE_SITE_KEY || null,
+      turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : null,
       slots: slotsForSchedule(link, rules).map((slot) => ({
         ...slot,
         booked: unavailable.has(slot.startsAt),

@@ -86,9 +86,7 @@ Set these under **Workers & Pages → example-slotloom-api → Settings → Vari
 | `POLICY_AUD` | The Audience tag from the Cloudflare Access application. It binds accepted login tokens to this specific protected application. |
 | `BOOTSTRAP_OWNER_EMAIL` | Email allowed to become the first workspace owner. It must exactly match the authenticated Access email. |
 | `ALLOW_ADMIN_TOKEN` | Local fallback switch. Keep `false` in production. |
-| `TURNSTILE_SITE_KEY` | Public Turnstile widget key. Leave empty when Turnstile is disabled. |
-| `DAYS_AHEAD` | Legacy fallback horizon. New booking links store their own value. |
-| `SLOT_TIMES` | Legacy fallback slot list. New booking links store availability rules in D1. |
+| `TURNSTILE_SITE_KEY` | Public Turnstile widget key. Configure it together with `TURNSTILE_SECRET`, or leave both absent. |
 
 Secret:
 
@@ -97,6 +95,10 @@ Secret:
 | `TURNSTILE_SECRET` | Private Turnstile verification key. Store as an encrypted Worker secret, never in Git. |
 
 `ADMIN_TOKEN` is only for local development and must not be configured in production.
+
+Scheduling horizon, weekdays and time windows are not Worker environment
+variables. Manage them under **Admin → Links**; each booking link stores its own
+availability rules in D1.
 
 ### Pages variables
 
@@ -172,17 +174,43 @@ manual CLI deployments. Encrypted secrets are also preserved.
 
 ## Cloudflare Access setup
 
-Create a self-hosted Access application for:
+After attaching a Cloudflare-managed custom domain to Pages:
 
-- `your-domain.com/admin*`
-- `your-domain.com/api/admin/*`
+1. Go to **Zero Trust → Access controls → Applications**.
+2. Create a **Self-hosted and private** application.
+3. Add the public hostname twice, using paths `/admin*` and `/api/admin/*`.
+4. Add an Allow policy for trusted administrator emails and create the app.
+5. Open **Configure → Additional settings** and copy the **Application Audience
+   (AUD) Tag** into Worker `POLICY_AUD`.
+6. Open **Zero Trust → Settings**, copy the team domain, add `https://`, and store
+   it as Worker `TEAM_DOMAIN` (for example,
+   `https://your-team.cloudflareaccess.com`).
+7. Set `BOOTSTRAP_OWNER_EMAIL` to the exact email used for the first Access login.
 
-Allow only trusted administrator emails. Copy:
+`POLICY_AUD` and `TEAM_DOMAIN` are plain Worker variables, not secrets. The Pages
+proxy forwards the Access assertion; the Worker verifies its signature, issuer,
+expiry and audience before serving admin data. See Cloudflare's
+[Access JWT validation guide](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
 
-- the Access team URL into `TEAM_DOMAIN`
-- the application Audience tag into `POLICY_AUD`
+## Turnstile dashboard setup
 
-The Pages proxy forwards the Access assertion to the Worker. The Worker verifies its signature, issuer, expiry and audience again before serving admin data.
+1. Go to **Cloudflare dashboard → Turnstile → Add widget**.
+2. Name it `Slotloom booking form` and choose **Managed** mode.
+3. Add the final Pages custom hostname without `https://` or a path. Add the
+   `app.example.com` hostname only if it will serve production traffic. Add `localhost`
+   and `127.0.0.1` only when testing the real widget locally.
+4. Leave pre-clearance disabled; this app validates every booking token through
+   Siteverify in the Worker.
+5. Create the widget and copy both generated keys.
+6. In **Workers & Pages → example-slotloom-api → Settings → Variables and Secrets**, add
+   `TURNSTILE_SITE_KEY` as plain text and `TURNSTILE_SECRET` as an encrypted
+   secret. Do not put either value in Pages.
+
+Configure both keys or neither. A partial configuration now returns a safe `503`
+instead of silently accepting unverified bookings. The Worker also validates the
+widget hostname against `APP_URL` and the action `booking-submit`. See the
+[dashboard widget guide](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/)
+and [mandatory Siteverify guidance](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
 
 ## White-labeling
 

@@ -1,32 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   authorizeAdmin,
-  availableSlots,
   emailContent,
   meetingOwner,
   slotsForSchedule,
 } from "./index";
+import { turnstileConfiguration, verifyTurnstile } from "./domain";
 
 const env = {
   APP_NAME: "Slotloom",
   APP_URL: "https://meet.example.com",
   TIME_ZONE: "Asia/Kolkata",
-  DAYS_AHEAD: "14",
-  SLOT_TIMES: "10:00,14:00",
   ORGANIZER_EMAIL: "owner@example.com",
 };
 
-describe("availableSlots", () => {
-  it("creates valid, future weekday slots in the configured timezone", () => {
-    const slots = availableSlots(env as never);
-    expect(slots.length).toBeGreaterThan(0);
-    for (const slot of slots) {
-      expect(new Date(slot.startsAt).getTime()).toBeGreaterThan(Date.now());
-      expect(slot.label).toMatch(/10:00 AM|2:00 PM/);
-      expect(slot.label).not.toMatch(/Saturday|Sunday/);
-    }
-  });
-});
+afterEach(() => vi.restoreAllMocks());
 
 describe("slotsForSchedule", () => {
   it("respects a link's duration, interval, and weekday window", () => {
@@ -138,6 +126,65 @@ describe("authorizeAdmin", () => {
       POLICY_AUD: "",
     } as never);
     expect(identity).toBeNull();
+  });
+});
+
+describe("Turnstile", () => {
+  it("requires the site key and secret to be configured together", () => {
+    expect(turnstileConfiguration({} as never)).toEqual({
+      enabled: false,
+      siteKey: null,
+      valid: true,
+    });
+    expect(
+      turnstileConfiguration({ TURNSTILE_SITE_KEY: "public-key" } as never),
+    ).toEqual({ enabled: false, siteKey: "public-key", valid: false });
+    expect(
+      turnstileConfiguration({
+        TURNSTILE_SITE_KEY: "public-key",
+        TURNSTILE_SECRET: "private-key",
+      } as never),
+    ).toEqual({ enabled: true, siteKey: "public-key", valid: true });
+  });
+
+  it("validates the Siteverify hostname and booking action", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        success: true,
+        hostname: "meet.example.com",
+        action: "booking-submit",
+      }),
+    );
+    const valid = await verifyTurnstile(
+      "visitor-token",
+      new Request("https://api.example.com/api/public/links/consultation"),
+      {
+        APP_URL: "https://meet.example.com",
+        TURNSTILE_SITE_KEY: "public-key",
+        TURNSTILE_SECRET: "private-key",
+      } as never,
+    );
+    expect(valid).toBe(true);
+  });
+
+  it("rejects a token issued for another hostname or action", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        success: true,
+        hostname: "attacker.example.com",
+        action: "different-form",
+      }),
+    );
+    const valid = await verifyTurnstile(
+      "visitor-token",
+      new Request("https://api.example.com/api/public/links/consultation"),
+      {
+        APP_URL: "https://meet.example.com",
+        TURNSTILE_SITE_KEY: "public-key",
+        TURNSTILE_SECRET: "private-key",
+      } as never,
+    );
+    expect(valid).toBe(false);
   });
 });
 
