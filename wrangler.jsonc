@@ -31,12 +31,12 @@
       }
     ]
   },
-  "migrations": [
-    {
-      "tag": "notification-hub-v1",
-      "new_sqlite_classes": ["NotificationHub"]
+  "exports": {
+    "NotificationHub": {
+      "type": "durable-object",
+      "storage": "sqlite"
     }
-  ],
+  },
   "triggers": { "crons": ["17 2 * * *"] },
   "observability": { "enabled": true },
 }

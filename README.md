@@ -105,10 +105,16 @@ Set these in the Pages project for both production and previews where appropriat
 | Variable | Meaning |
 |---|---|
 | `BACKEND_URL` | Deployed Worker origin, such as `https://example-slotloom-api.account.workers.dev`. |
+| `PNPM_VERSION` | Pages build-tool version. Use `10.28.0` to match this repository. |
 | `VITE_APP_NAME` | Build-time fallback name shown before runtime branding loads. |
 | `VITE_BRAND_LOGO` | Build-time fallback logo for light backgrounds. |
 | `VITE_BRAND_LOGO_DARK` | Build-time fallback logo for dark backgrounds. |
 | `VITE_BRAND_FAVICON` | Build-time fallback favicon. |
+
+The committed `.node-version` pins Pages builds to Node.js `22.22.2`. Do not point
+preview deployments at the production Worker unless preview traffic is allowed to
+read and change production data; use a separate preview Worker or leave preview
+`BACKEND_URL` unset.
 
 Branding can subsequently be changed by an owner from **Settings → Workspace branding** without rebuilding the frontend.
 
@@ -128,7 +134,7 @@ pnpm db:migrate:remote
 pnpm deploy:api
 ```
 
-The first Worker deployment creates the `NotificationHub` Durable Object namespace from the migration in `wrangler.jsonc`.
+The first Worker deployment creates the SQLite-backed `NotificationHub` Durable Object namespace declared in `wrangler.jsonc`.
 
 Next:
 
@@ -141,24 +147,28 @@ Next:
 7. Set Worker `APP_URL` to that final public domain.
 8. Protect `/admin*` and `/api/admin/*` with Cloudflare Access.
 
-## Cloudflare dashboard Git deployment
+## Deployment ownership
 
 GitHub Actions is CI-only. It runs the quality checks below, including a
 Wrangler dry-run, without Cloudflare credentials and does not deploy anything.
 
-Configure production deployment from the Cloudflare dashboard by connecting the
-same GitHub repository to both Cloudflare projects:
+Use these two separate production paths:
 
-- Pages deploys the frontend on pushes to `main`.
-- Workers Builds deploys `example-slotloom-api` on pushes to `main`.
+- Deploy `example-slotloom-api` manually with Wrangler after applying D1 migrations.
+- Connect only the Pages project to the GitHub repository in the Cloudflare
+  dashboard so Pages deploys the frontend from `main`.
 
-Recommended Worker deploy command:
+Worker deployment commands:
 
 ```sh
-pnpm db:migrate:remote && pnpm deploy:api
+pnpm db:migrate:remote
+pnpm deploy:api
 ```
 
-The Wrangler file uses `keep_vars: true`, so instance-specific variables configured in the Cloudflare dashboard are preserved during Git deployments. Encrypted secrets are also preserved.
+Do not enable Workers Builds for this deployment model and do not use Wrangler to
+deploy Pages. The Wrangler file uses `keep_vars: true`, so instance-specific
+Worker variables configured in the Cloudflare dashboard are preserved during
+manual CLI deployments. Encrypted secrets are also preserved.
 
 ## Cloudflare Access setup
 

@@ -24,7 +24,6 @@
     "build": "tsc -b && vite build",
     "check:structure": "node scripts/check-file-size.mjs",
     "deploy:api": "wrangler deploy",
-    "deploy:pages": "pnpm build && wrangler pages deploy dist --project-name slotloom --config wrangler.pages.jsonc",
     "typecheck": "pnpm check:structure && tsc -b --pretty false",
     "test": "vitest run",
     "ci": "pnpm typecheck && pnpm test && pnpm build && pnpm exec wrangler deploy --dry-run",

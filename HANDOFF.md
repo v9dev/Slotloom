@@ -206,10 +206,15 @@ Pages variables:
 | Name | Purpose |
 |---|---|
 | `BACKEND_URL` | Deployed Worker origin without a trailing slash |
+| `PNPM_VERSION` | Pages build-tool version; set to `10.28.0` |
 | `VITE_APP_NAME` | Build-time fallback name |
 | `VITE_BRAND_LOGO` | Build-time light logo |
 | `VITE_BRAND_LOGO_DARK` | Build-time dark logo |
 | `VITE_BRAND_FAVICON` | Build-time favicon |
+
+The committed `.node-version` pins both local and Pages builds to Node.js
+`22.22.2`. Pages previews should not use the production `BACKEND_URL` unless it is
+acceptable for preview traffic to read and mutate production D1 data.
 
 ## Start on a different machine
 
@@ -243,7 +248,21 @@ pnpm exec wrangler deploy --dry-run
 
 ## First production provisioning
 
-Do these in order.
+The Wrangler provisioning steps below were completed on 2026-08-05 in Cloudflare
+account `00000000000000000000000000000000`:
+
+- Worker: `example-slotloom-api`
+- Worker origin: `https://example-slotloom-api.thedevimapro.workers.dev`
+- deployed version: `00000000-0000-0000-0000-000000000000`
+- D1: `example-slotloom-db` (`00000000-0000-0000-0000-000000000000`, APAC)
+- remote D1 migrations: all migrations through `0020_complete_white_label.sql`
+- R2: `example-slotloom-assets` (Standard storage)
+- Durable Object: SQLite-backed `NotificationHub`
+- cron: `17 2 * * *`
+- live smoke test: `GET /api/public/brand` returned HTTP 200
+
+The create commands are retained as recovery/reference steps; do not rerun them
+for this account because the named resources already exist.
 
 1. Log into the Cloudflare account that will own compute:
 
@@ -277,17 +296,48 @@ Do these in order.
    pnpm deploy:api
    ```
 
-   This also creates the `NotificationHub` Durable Object namespace from the Wrangler migration.
+   This also creates the SQLite-backed `NotificationHub` Durable Object namespace declared in `wrangler.jsonc`.
 
-7. In Worker settings, configure all production variables. Set secrets such as Turnstile with encrypted secret storage. Keep `ALLOW_ADMIN_TOKEN=false`.
+7. In **Workers & Pages → example-slotloom-api → Settings → Variables and Secrets**,
+   configure these production values:
+
+   | Worker name | Value to enter | Where it comes from |
+   |---|---|---|
+   | `APP_NAME` | `Slotloom` | chosen application fallback name |
+   | `ORGANIZER_EMAIL` | real organizer email | chosen scheduling owner/reply-to address |
+   | `FROM_EMAIL` | for example `Meetings <meetings@your-domain.com>` | sender on a domain onboarded in Email Service |
+   | `APP_URL` | final `https://app.example.com` Pages origin, no trailing slash | Pages project after its first UI deployment/custom-domain attachment |
+   | `TIME_ZONE` | for example `Asia/Kolkata` | chosen IANA timezone |
+   | `TEAM_DOMAIN` | `https://<team>.app.example.com` | Zero Trust team domain |
+   | `POLICY_AUD` | Access application AUD tag | Access self-hosted application details |
+   | `BOOTSTRAP_OWNER_EMAIL` | exact owner login email | email allowed by the Access policy |
+   | `ALLOW_ADMIN_TOKEN` | `false` | fixed production safety setting |
+   | `TURNSTILE_SITE_KEY` | widget site key | optional Turnstile widget details |
+   | `DAYS_AHEAD` | `14` | chosen legacy fallback |
+   | `SLOT_TIMES` | `10:00,14:00` | chosen legacy fallback |
+
+   Add `TURNSTILE_SECRET` as an **encrypted secret**, not plain text, using the
+   secret from the same optional Turnstile widget. Configure both Turnstile keys
+   together or omit both. Never create production `ADMIN_TOKEN`.
 
 8. Onboard and verify the `FROM_EMAIL` sender/domain for Cloudflare Email Sending.
 
 9. Create a Pages project connected to the GitHub repository:
 
+   - repository: `v9dev/Slotloom`
+   - production branch: `main`
+   - root directory: `/`
    - build command: `pnpm build`
    - output directory: `dist`
-   - Pages variable `BACKEND_URL`: deployed Worker origin
+   - build image: v3
+   - production `BACKEND_URL`: `https://example-slotloom-api.thedevimapro.workers.dev`
+   - production and preview `PNPM_VERSION`: `10.28.0`
+   - production and preview `VITE_APP_NAME`: `Slotloom`
+
+   `.node-version` supplies Node.js `22.22.2`. The three `VITE_BRAND_*`
+   variables are optional because the repository includes fallback assets. Leave
+   preview `BACKEND_URL` unset until a separate preview Worker exists, unless
+   previews are intentionally allowed to use production data.
 
 10. Attach the frontend domain to Pages and set Worker `APP_URL` to that final HTTPS origin.
 
@@ -311,12 +361,14 @@ git push -u origin main
 
 The repository includes GitHub Actions CI, Dependabot configuration, a pull-request template, Apache 2.0 license, contribution instructions and a security policy. GitHub Actions only validates the project; its Wrangler command uses `--dry-run`, has no Cloudflare credentials and does not deploy.
 
-Configure production deployment through the Cloudflare dashboard Git integrations:
+Production deployment is deliberately split:
 
-- connect Pages to `main`
-- connect Workers Builds to the same repository
-- Worker deploy command: `pnpm db:migrate:remote && pnpm deploy:api`
-- configure production values in Cloudflare; `keep_vars: true` prevents Wrangler from deleting dashboard variables
+- connect only Pages to `main` through the Cloudflare dashboard Git integration
+- deploy the Worker manually with `pnpm db:migrate:remote` followed by
+  `pnpm deploy:api`
+- do not enable Workers Builds and do not deploy Pages with Wrangler
+- configure production values in Cloudflare; `keep_vars: true` prevents Wrangler
+  from deleting dashboard Worker variables during later CLI deployments
 
 ## D1 migration policy
 
@@ -346,18 +398,17 @@ The real `.dev.vars` exists locally and is ignored. It is not part of Git and wi
 
 These are external configuration or future product tasks, not hidden completed features:
 
-1. Create the GitHub repository and push `main`.
-2. Create the production D1 database and replace its placeholder ID.
-3. Create the production R2 bucket.
-4. Configure production Worker variables and secrets.
-5. Verify the Email Sending domain and perform real delivery tests.
-6. Connect Pages and Workers Builds to GitHub through the Cloudflare dashboard.
-7. Configure the final frontend domain and `APP_URL`.
-8. Configure and test Cloudflare Access with the real owner email.
-9. Optionally configure Turnstile and test production verification.
-10. Add end-to-end browser tests and broader Worker integration tests; current automated coverage is intentionally small.
-11. Refactor `worker/index.ts` before adding more routes because it is at the line limit.
-12. Build tenant isolation before offering a shared multi-client SaaS instance.
-13. Build Google Calendar/Microsoft Graph OAuth only if automatic event creation becomes a product requirement.
+1. Configure production Worker variables and secrets.
+2. Verify the Email Sending domain and perform real delivery tests.
+3. Create Pages from `v9dev/Slotloom` using the Cloudflare dashboard Git integration.
+4. Configure the final frontend domain and Worker `APP_URL`.
+5. Configure and test Cloudflare Access with the real owner email.
+6. Optionally configure Turnstile and test production verification.
+7. Run final booking, management-link, email, branding-upload and Access smoke tests.
+8. Add end-to-end browser tests and broader Worker integration tests; current automated coverage is intentionally small.
+9. Refactor `worker/index.ts` before adding more routes because it is at the line limit.
+10. Build tenant isolation before offering a shared multi-client SaaS instance.
+11. Build Google Calendar/Microsoft Graph OAuth only if automatic event creation becomes a product requirement.
 
-Do not mark production ready until items 1 through 8 have been completed and tested on the final domain.
+Do not mark production ready until items 1 through 5 and the production smoke tests
+in item 7 have been completed on the final domain.
