@@ -22,9 +22,9 @@ afterEach(() => vi.restoreAllMocks());
 describe("pageTitle", () => {
   it("combines the current page, brand, and tagline", () => {
     expect(pageTitle("Booking links")).toBe(
-      "Booking links · Slotloom — Scheduling, without the overhead.",
+      "Booking links | Slotloom | Scheduling, without the overhead.",
     );
-    expect(pageTitle()).toBe("Slotloom — Scheduling, without the overhead.");
+    expect(pageTitle()).toBe("Slotloom | Scheduling, without the overhead.");
   });
 });
 
