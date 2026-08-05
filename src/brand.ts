@@ -10,7 +10,7 @@ export const brand = {
 
 export function pageTitle(page?: string) {
   const identity = `${brand.name} | ${brand.tagline}`;
-  return page ? `${page} | ${identity}` : identity;
+  return page ? `${page} · ${identity}` : identity;
 }
 
 export function setPageTitle(page?: string) {
