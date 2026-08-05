@@ -8,6 +8,15 @@ export const brand = {
   accentColor: "#7c3aed",
 };
 
+export function pageTitle(page?: string) {
+  const identity = `${brand.name} — ${brand.tagline}`;
+  return page ? `${page} · ${identity}` : identity;
+}
+
+export function setPageTitle(page?: string) {
+  document.title = pageTitle(page);
+}
+
 export function applyBranding(values: Partial<typeof brand>) {
   if (values.name?.trim()) brand.name = values.name.trim();
   if (values.logo?.trim()) brand.logo = values.logo.trim();

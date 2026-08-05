@@ -120,7 +120,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { BrandLogo } from "@/components/BrandLogo";
-import { brand } from "@/brand";
+import { brand, setPageTitle } from "@/brand";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -159,6 +159,27 @@ const WorkspaceSettings = lazy(() =>
 const Team = lazy(() =>
   import("./admin/Workspace").then((module) => ({ default: module.Team })),
 );
+
+const adminSections = {
+  overview: "Overview",
+  links: "Booking links",
+  requests: "Responses",
+  activity: "Activity",
+  emails: "Email templates",
+  settings: "Settings",
+  team: "Team & roles",
+} as const;
+
+function adminSection(path: string): keyof typeof adminSections {
+  if (path.includes("/links")) return "links";
+  if (path.includes("/requests")) return "requests";
+  if (path.includes("/activity")) return "activity";
+  if (path.includes("/emails")) return "emails";
+  if (path.includes("/settings")) return "settings";
+  if (path.includes("/team")) return "team";
+  return "overview";
+}
+
 export default function Admin() {
   const [path, setPath] = useState(location.pathname);
   const [user, setUser] = useState<WorkspaceUser>();
@@ -176,6 +197,8 @@ export default function Admin() {
     authenticate();
     return () => removeEventListener("popstate", update);
   }, []);
+  const section = adminSection(path);
+  useEffect(() => setPageTitle(adminSections[section]), [section]);
   if (checking)
     return (
       <div className="flex min-h-svh items-center justify-center">
@@ -217,19 +240,6 @@ export default function Admin() {
         </Card>
       </main>
     );
-  const section = path.includes("/links")
-    ? "links"
-    : path.includes("/requests")
-      ? "requests"
-      : path.includes("/activity")
-        ? "activity"
-        : path.includes("/emails")
-          ? "emails"
-          : path.includes("/settings")
-            ? "settings"
-            : path.includes("/team")
-              ? "team"
-              : "overview";
   const canManageLinks = user.role === "owner" || user.role === "admin";
   const canEditRequests = user.role !== "viewer";
   const nav = <Nav section={section} user={user} />;

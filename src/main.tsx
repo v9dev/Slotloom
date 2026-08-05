@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import "./styles.css";
-import { applyBranding, brand } from "@/brand";
+import { applyBranding, brand, setPageTitle } from "@/brand";
 
 async function loadBranding() {
   try {
@@ -28,7 +28,7 @@ async function loadBranding() {
 }
 
 await loadBranding();
-document.title = brand.name;
+setPageTitle();
 document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute("href", brand.favicon);
 
 createRoot(document.getElementById("root")!).render(

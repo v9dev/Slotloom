@@ -257,8 +257,16 @@ account `00000000000000000000000000000000`:
 - Durable Object: SQLite-backed `NotificationHub`
 - cron: `17 2 * * *`
 - live smoke test: `GET /api/public/brand` returned HTTP 200
-- production booking links: none yet; create them through **Admin → Links** after
-  Pages and Access are configured
+- Pages custom origin `https://app.example.com` returned HTTP 200
+- Pages proxy `GET /api/public/brand` returned HTTP 200
+- unauthenticated `/admin` and `/api/admin/me` requests redirected to the
+  `your-team.cloudflareaccess.com` Access login
+
+Worker version `00000000-0000-0000-0000-000000000000` contains the production
+email-rendering fix from commit `1976c06`: Wrangler now uses
+`tsconfig.worker.json`, so React Email TSX is compiled with the automatic JSX
+runtime instead of emitting an undefined global `React`. A real template-render
+regression test covers this path.
 
 The 2026-08-05 cleanup deployment also corrected the production variable names
 and URL formats. The active values now use `APP_URL=https://app.example.com`,
@@ -419,7 +427,7 @@ The following passed immediately before this handoff:
 
 - structure/file-size check
 - TypeScript project build
-- 9 Vitest tests
+- 11 Vitest tests
 - Vite production build
 - Wrangler deployment dry-run with D1, R2, Email and Durable Object bindings
 - local D1 migrations through `0020`
@@ -434,17 +442,17 @@ The real `.dev.vars` exists locally and is ignored. It is not part of Git and wi
 
 These are external configuration or future product tasks, not hidden completed features:
 
-1. Configure production Worker variables and secrets.
-2. Verify the Email Sending domain and perform real delivery tests.
-3. Create Pages from `v9dev/Slotloom` using the Cloudflare dashboard Git integration.
-4. Configure the final frontend domain and Worker `APP_URL`.
-5. Configure and test Cloudflare Access with the real owner email.
-6. Optionally configure Turnstile and test production verification.
-7. Run final booking, management-link, email, branding-upload and Access smoke tests.
-8. Add end-to-end browser tests and broader Worker integration tests; current automated coverage is intentionally small.
-9. Refactor `worker/index.ts` before adding more routes because it is at the line limit.
-10. Build tenant isolation before offering a shared multi-client SaaS instance.
-11. Build Google Calendar/Microsoft Graph OAuth only if automatic event creation becomes a product requirement.
+1. Repeat a real booking submission and confirm delivery succeeds through Worker
+   version `00000000-0000-0000-0000-000000000000`; the earlier attempt reached
+   Email Sending but failed during rendering with `React is not defined`.
+2. Complete a browser sign-in with the real owner identity and verify the admin
+   dashboard/API after Access; unauthenticated redirects are already verified.
+3. Test Turnstile on the final booking hostname, including a successful request
+   and rejection of an invalid token.
+4. Run final booking, management-link, email, branding-upload and Access smoke tests.
+5. Add end-to-end browser tests and broader Worker integration tests; current automated coverage is intentionally small.
+6. Refactor `worker/index.ts` before adding more routes because it is at the line limit.
+7. Build tenant isolation before offering a shared multi-client SaaS instance.
+8. Build Google Calendar/Microsoft Graph OAuth only if automatic event creation becomes a product requirement.
 
-Do not mark production ready until items 1 through 5 and the production smoke tests
-in item 7 have been completed on the final domain.
+Do not mark production ready until items 1 through 4 have passed on the final domain.

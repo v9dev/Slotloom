@@ -13,6 +13,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
 import type { BookingLink, Slot } from "@/types";
 import { BrandLogo } from "@/components/BrandLogo";
+import { setPageTitle } from "@/brand";
 import { browserTimeZone, TimeZoneSelect } from "@/components/TimeZoneSelect";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,9 @@ export default function PublicBooking({ slug }: { slug: string }) {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [slug]);
+  useEffect(() => {
+    setPageTitle(data?.link.title || "Book a meeting");
+  }, [data?.link.title]);
   const groups = useMemo(
     () =>
       data?.slots.reduce<Record<string, Slot[]>>((all, slot) => {

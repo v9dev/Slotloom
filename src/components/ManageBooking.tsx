@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandLogo } from "@/components/BrandLogo";
+import { setPageTitle } from "@/brand";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +51,9 @@ export default function ManageBooking({ token }: { token: string }) {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
+  useEffect(() => {
+    setPageTitle(booking?.linkTitle || "Manage booking");
+  }, [booking?.linkTitle]);
   const groups = useMemo(
     () =>
       slots.reduce<Record<string, Slot[]>>((all, slot) => {

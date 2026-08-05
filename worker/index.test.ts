@@ -10,6 +10,7 @@ import {
   turnstileConfiguration,
   verifyTurnstile,
 } from "./domain";
+import { pageTitle } from "../src/brand";
 
 const env = {
   APP_URL: "https://meet.example.com",
@@ -17,6 +18,15 @@ const env = {
 };
 
 afterEach(() => vi.restoreAllMocks());
+
+describe("pageTitle", () => {
+  it("combines the current page, brand, and tagline", () => {
+    expect(pageTitle("Booking links")).toBe(
+      "Booking links · Slotloom — Scheduling, without the overhead.",
+    );
+    expect(pageTitle()).toBe("Slotloom — Scheduling, without the overhead.");
+  });
+});
 
 describe("slotsForSchedule", () => {
   it("respects a link's duration, interval, and weekday window", () => {
