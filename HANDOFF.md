@@ -259,6 +259,19 @@ account `00000000000000000000000000000000`:
 - production booking links: none yet; create them through **Admin → Links** after
   Pages and Access are configured
 
+The 2026-08-05 cleanup deployment also corrected the production variable names
+and URL formats. The active values now use `APP_URL=https://app.example.com`,
+`TEAM_DOMAIN=https://your-team.cloudflareaccess.com` and
+`FROM_EMAIL=Slotloom <owner@example.com>`. Email Sending is enabled for
+`app.example.com`, and the encrypted `TURNSTILE_SECRET` remained attached.
+
+Delete these obsolete Worker dashboard variables after confirming the correctly
+spelled entries remain: `APP_NAME`, `TIME_ZONE`, `ORGANIZER_EMAIL`,
+`ALLOW_ADMIN_TOKEN`, `FROM_EMAIL `, `TEAM_DOMAIN ` and `TURNSTILE_SITE_KEY `.
+The last three names contain an accidental trailing space. In Pages, delete any
+old `VITE_APP_NAME` or `VITE_BRAND_*` entries; keep `BACKEND_URL` and
+`PNPM_VERSION`.
+
 The create commands are retained as recovery/reference steps; do not rerun them
 for this account because the named resources already exist.
 
