@@ -46,7 +46,7 @@ KV, Queues, Firebase, and a traditional server are not required. R2 is used only
 
 ## Local development
 
-Requirements: Node.js 20 or newer, pnpm 10, and a Cloudflare account for remote services.
+Requirements: Node.js 22 or newer, pnpm 10, and a Cloudflare account for remote services.
 
 ```sh
 pnpm install
@@ -141,9 +141,13 @@ Next:
 7. Set Worker `APP_URL` to that final public domain.
 8. Protect `/admin*` and `/api/admin/*` with Cloudflare Access.
 
-## Automatic Git deployment
+## Cloudflare dashboard Git deployment
 
-Connect the same GitHub repository to both Cloudflare projects:
+GitHub Actions is CI-only. It runs the quality checks below, including a
+Wrangler dry-run, without Cloudflare credentials and does not deploy anything.
+
+Configure production deployment from the Cloudflare dashboard by connecting the
+same GitHub repository to both Cloudflare projects:
 
 - Pages deploys the frontend on pushes to `main`.
 - Workers Builds deploys `example-slotloom-api` on pushes to `main`.
