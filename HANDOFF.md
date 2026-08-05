@@ -261,6 +261,8 @@ account `00000000000000000000000000000000`:
 - Durable Object: SQLite-backed `NotificationHub`
 - cron: `17 2 * * *`
 - live smoke test: `GET /api/public/brand` returned HTTP 200
+- production booking links: none yet; create them through **Admin → Links** after
+  Pages and Access are configured
 
 The create commands are retained as recovery/reference steps; do not rerun them
 for this account because the named resources already exist.
