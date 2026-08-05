@@ -1,250 +1,110 @@
-# Slotloom
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./public/brand/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./public/brand/logo-light.svg">
+    <img alt="Slotloom" src="./public/brand/logo-light.svg" width="360">
+  </picture>
 
-**Scheduling, without the overhead.**
+  <p><strong>Open-source scheduling and meeting follow-up, built for Cloudflare.</strong></p>
 
-Slotloom is an open-source, white-label availability and meeting follow-up platform built for Cloudflare. Create booking links, collect responses, review selected slots, send meeting details, handle rescheduling, and track outcomes without adopting a full calendar platform.
+  <p>
+    <a href="https://github.com/v9dev/Slotloom/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/v9dev/Slotloom/actions/workflows/ci.yml/badge.svg"></a>
+    <a href="./LICENSE"><img alt="Apache 2.0 License" src="https://img.shields.io/badge/license-Apache--2.0-2563eb.svg"></a>
+    <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white">
+    <img alt="pnpm 10" src="https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&logoColor=white">
+  </p>
 
-## What Slotloom includes
+  <p>
+    <img alt="React" src="https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB">
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white">
+    <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white">
+    <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white">
+    <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white">
+  </p>
+</div>
 
-- Responsive public slot-booking flow
-- Multiple booking links with independent schedules and validity dates
-- Clear booked-slot states and double-booking protection
-- Role-based workspace for owners, admins, members, and viewers
-- Searchable, filtered, paginated response and activity tables
-- Editable React Email templates with light and dark previews
-- Manual meeting-link workflow with `.ics` calendar invitations
-- Secure visitor cancellation, rescheduling, and feedback links
-- Real-time dashboard notifications using hibernating WebSockets
-- D1 audit history, retention controls, and privacy-safe deletion
-- UI-managed white-label name, tagline, light/dark logos, favicon, colors, and email identity
-- Cloudflare Access authentication and optional Turnstile protection
+Slotloom is a self-hosted, white-label platform for publishing availability,
+collecting preferred meeting times, and managing follow-up from one workspace.
+It runs without a traditional server: Pages serves the React app, while Workers,
+D1, R2, Durable Objects, and Email Sending power the backend.
 
-## Architecture
+## Highlights
 
-```text
-Browser
-  │
-  ├── Cloudflare Pages: React application and same-origin API proxy
-  │
-  └── Cloudflare Worker: API, permissions, scheduling and email
-          ├── D1: application data and notification history
-          ├── R2: uploaded workspace logos and favicons
-          ├── Durable Object: live notification connections
-          └── Email Sending: confirmations and follow-ups
-```
+- Multiple booking links with independent schedules, validity, and timezones
+- Double-booking protection with secure rescheduling and cancellation links
+- Owner, admin, member, and viewer roles protected by Cloudflare Access
+- Runtime white-label branding, including logos, colors, favicon, and email identity
+- Email templates, calendar invitations, follow-ups, feedback, and audit history
+- Real-time dashboard notifications and optional Turnstile bot protection
 
-KV, Queues, Firebase, and a traditional server are not required. R2 is used only for logo and favicon uploads; externally hosted asset URLs can be used instead.
+## Stack
 
-## Technology
+| Layer     | Technology                                       |
+| --------- | ------------------------------------------------ |
+| Web       | React, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| Compute   | Cloudflare Pages and Workers                     |
+| Data      | Cloudflare D1, R2, and Durable Objects           |
+| Security  | Cloudflare Access and Turnstile                  |
+| Messaging | Cloudflare Email Sending and React Email         |
+| Quality   | Vitest, TypeScript, and GitHub Actions           |
 
-- React, TypeScript and Vite
-- Tailwind CSS v4 and shadcn/ui
-- React Email
-- Cloudflare Pages, Workers, D1 and Durable Objects
-- Cloudflare Email Sending, Access and optional Turnstile
-- Vitest
+## Quick start
 
-## Local development
-
-Requirements: Node.js 22 or newer, pnpm 10, and a Cloudflare account for remote services.
+Requires Node.js 22+, pnpm 10, and Wrangler.
 
 ```sh
+git clone https://github.com/v9dev/Slotloom.git
+cd Slotloom
 pnpm install
 cp .dev.vars.example .dev.vars
-pnpm db:migrate:local
-```
-
-Prepare `.dev.vars`, replace its generated `ADMIN_TOKEN` with a private value, then start both the Worker and Vite:
-
-```sh
 pnpm dev:setup
+pnpm db:migrate:local
 pnpm dev
 ```
 
-`pnpm dev` starts both services. Vite runs on `http://localhost:5173` and proxies `/api` plus notification WebSockets to the local Worker on port `8787`. Running Vite alone makes the UI appear but leaves API calls unavailable.
+Open `http://localhost:5173/admin`. Vite runs on port `5173` and proxies API and
+WebSocket traffic to the local Worker on port `8787`.
 
-If startup says port `5173` or `8787` is already in use, stop the older development process before retrying. Slotloom intentionally does not move to another port because `APP_URL` and email links must match the frontend origin.
+## Configuration
 
-Open `http://localhost:5173/admin`. Create the first booking link from the dashboard.
+- Worker variables: `FROM_EMAIL`, `APP_URL`, `TEAM_DOMAIN`, `POLICY_AUD`,
+  `BOOTSTRAP_OWNER_EMAIL`, and optional `TURNSTILE_SITE_KEY`
+- Worker secret: optional encrypted `TURNSTILE_SECRET`
+- Pages variables: `BACKEND_URL` and `PNPM_VERSION=10.28.0`
+- Local-only authentication: `ADMIN_TOKEN` in the ignored `.dev.vars` file
 
-Local email delivery may fail without a remote Email Sending binding. Responses remain stored and delivery attempts remain logged.
+Branding and booking schedules are managed in the application, not through
+environment variables. See the [deployment handover](HANDOFF.md) for provisioning,
+Access, Turnstile, Email Sending, and production configuration.
 
-## Configuration reference
+## Deployment
 
-### Worker variables
-
-Set these under **Workers & Pages → example-slotloom-api → Settings → Variables and Secrets**.
-
-| Variable | Meaning |
-|---|---|
-| `FROM_EMAIL` | Verified sender, for example `Meetings <meetings@your-domain.com>`. |
-| `APP_URL` | Public Pages URL, used for secure management links, images and email actions. |
-| `TEAM_DOMAIN` | Your Cloudflare Access organization URL, such as `https://your-team.cloudflareaccess.com`. This is not your website domain. The Worker uses it to download Access signing keys and validate who signed in. |
-| `POLICY_AUD` | The Audience tag from the Cloudflare Access application. It binds accepted login tokens to this specific protected application. |
-| `BOOTSTRAP_OWNER_EMAIL` | Email allowed to become the first workspace owner. It must exactly match the authenticated Access email and is the last-resort contact for legacy unassigned records. |
-| `TURNSTILE_SITE_KEY` | Public Turnstile widget key. Configure it together with `TURNSTILE_SECRET`, or leave both absent. |
-
-Secret:
-
-| Secret | Meaning |
-|---|---|
-| `TURNSTILE_SECRET` | Private Turnstile verification key. Store as an encrypted Worker secret, never in Git. |
-
-`ADMIN_TOKEN` is only for local development. The Worker accepts it only on
-loopback request hosts and rejects it on every deployed hostname.
-
-Application branding and scheduling configuration are not Worker environment
-variables. Manage branding under **Settings → Workspace branding** and timezone,
-horizon, weekdays and time windows under **Admin → Links**. Each visitor's chosen
-timezone is stored with the response and used when formatting their emails.
-
-### Pages variables
-
-Set these in the Pages project for both production and previews where appropriate.
-
-| Variable | Meaning |
-|---|---|
-| `BACKEND_URL` | Deployed Worker origin, such as `https://example-slotloom-api.account.workers.dev`. |
-| `PNPM_VERSION` | Pages build-tool version. Use `10.28.0` to match this repository. |
-
-The committed `.node-version` pins Pages builds to Node.js `22.22.2`. Do not point
-preview deployments at the production Worker unless preview traffic is allowed to
-read and change production data; use a separate preview Worker or leave preview
-`BACKEND_URL` unset.
-
-Branding can subsequently be changed by an owner from **Settings → Workspace branding** without rebuilding the frontend.
-
-## First Cloudflare deployment
-
-Authenticate Wrangler in the account that will own the Worker:
-
-```sh
-pnpm exec wrangler login
-pnpm exec wrangler d1 create example-slotloom-db
-```
-
-Wrangler returns a D1 database ID. Put that non-secret ID in `wrangler.jsonc`, then run:
+GitHub Actions performs CI only and never deploys Cloudflare resources.
 
 ```sh
 pnpm db:migrate:remote
 pnpm deploy:api
 ```
 
-The first Worker deployment creates the SQLite-backed `NotificationHub` Durable Object namespace declared in `wrangler.jsonc`.
+Deploy the Worker manually with Wrangler. Connect the Pages project to `main` in
+the Cloudflare dashboard and let Pages build the frontend with `pnpm build` and
+publish `dist`.
 
-Next:
-
-1. Onboard the `FROM_EMAIL` domain in Cloudflare Email Sending.
-2. Configure Worker variables and the optional Turnstile secret.
-3. Create a Pages project from this GitHub repository.
-4. Use `pnpm build` as the build command and `dist` as the output directory.
-5. Set `BACKEND_URL` to the Worker origin.
-6. Attach the public domain to Pages.
-7. Set Worker `APP_URL` to that final public domain.
-8. Protect `/admin*` and `/api/admin/*` with Cloudflare Access.
-
-## Deployment ownership
-
-GitHub Actions is CI-only. It runs the quality checks below, including a
-Wrangler dry-run, without Cloudflare credentials and does not deploy anything.
-
-Use these two separate production paths:
-
-- Deploy `example-slotloom-api` manually with Wrangler after applying D1 migrations.
-- Connect only the Pages project to the GitHub repository in the Cloudflare
-  dashboard so Pages deploys the frontend from `main`.
-
-Worker deployment commands:
+## Quality
 
 ```sh
-pnpm db:migrate:remote
-pnpm deploy:api
+pnpm run ci
 ```
 
-Do not enable Workers Builds for this deployment model and do not use Wrangler to
-deploy Pages. The Wrangler file uses `keep_vars: true`, so instance-specific
-Worker variables configured in the Cloudflare dashboard are preserved during
-manual CLI deployments. Encrypted secrets are also preserved.
+This runs structure checks, TypeScript, tests, the production build, and a
+Wrangler deployment dry-run.
 
-## Cloudflare Access setup
+## Project documentation
 
-After attaching a Cloudflare-managed custom domain to Pages:
-
-1. Go to **Zero Trust → Access controls → Applications**.
-2. Create a **Self-hosted and private** application.
-3. Add the public hostname twice, using paths `/admin*` and `/api/admin/*`.
-4. Add an Allow policy for trusted administrator emails and create the app.
-5. Open **Configure → Additional settings** and copy the **Application Audience
-   (AUD) Tag** into Worker `POLICY_AUD`.
-6. Open **Zero Trust → Settings**, copy the team domain, add `https://`, and store
-   it as Worker `TEAM_DOMAIN` (for example,
-   `https://your-team.cloudflareaccess.com`).
-7. Set `BOOTSTRAP_OWNER_EMAIL` to the exact email used for the first Access login.
-
-`POLICY_AUD` and `TEAM_DOMAIN` are plain Worker variables, not secrets. The Pages
-proxy forwards the Access assertion; the Worker verifies its signature, issuer,
-expiry and audience before serving admin data. See Cloudflare's
-[Access JWT validation guide](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
-
-## Turnstile dashboard setup
-
-1. Go to **Cloudflare dashboard → Turnstile → Add widget**.
-2. Name it `Slotloom booking form` and choose **Managed** mode.
-3. Add the final Pages custom hostname without `https://` or a path. Add the
-   `app.example.com` hostname only if it will serve production traffic. Add `localhost`
-   and `127.0.0.1` only when testing the real widget locally.
-4. Leave pre-clearance disabled; this app validates every booking token through
-   Siteverify in the Worker.
-5. Create the widget and copy both generated keys.
-6. In **Workers & Pages → example-slotloom-api → Settings → Variables and Secrets**, add
-   `TURNSTILE_SITE_KEY` as plain text and `TURNSTILE_SECRET` as an encrypted
-   secret. Do not put either value in Pages.
-
-Configure both keys or neither. A partial configuration now returns a safe `503`
-instead of silently accepting unverified bookings. The Worker also validates the
-widget hostname against `APP_URL` and the action `booking-submit`. See the
-[dashboard widget guide](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/)
-and [mandatory Siteverify guidance](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
-
-## White-labeling
-
-An owner can configure the complete workspace identity from **Settings → Workspace branding**:
-
-- application name and tagline
-- a full workspace logo
-- a separate square favicon
-- primary and accent colors
-- direct image uploads or externally hosted HTTPS URLs
-
-Uploaded images are stored in the `example-slotloom-assets` R2 bucket. Create it before enabling uploads:
-
-```sh
-pnpm exec wrangler r2 bucket create example-slotloom-assets
-```
-
-The public brand configuration is loaded at runtime, so changing a client workspace does not require rebuilding Pages. The identity is used by the login screen, dashboard, booking flow, browser metadata, emails and calendar invitations.
-
-The current open-source distribution represents one isolated workspace per deployment. This gives each organization its own D1 database, assets, domain and branding. A shared multi-tenant hosted service additionally requires tenant IDs and isolation across every database query; do not place unrelated customers in one deployment until that isolation layer is enabled.
-
-## Quality checks
-
-```sh
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm exec wrangler deploy --dry-run
-```
-
-`pnpm check:structure` enforces a 1,000-line hard ceiling and reports files above 500 lines for refactoring review.
-
-## Security
-
-Do not commit `.dev.vars`, `.env`, API tokens, Access credentials or Turnstile secrets. See [SECURITY.md](SECURITY.md) for responsible disclosure.
-
-## Contributing
-
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- [Deployment and operational handover](HANDOFF.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 ## License
 
-Licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+Licensed under the [Apache License 2.0](LICENSE).
