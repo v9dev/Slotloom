@@ -341,6 +341,7 @@ export function Team() {
   const [users, setUsers] = useState<WorkspaceUser[]>([]);
   const [activity, setActivity] = useState<UserActivity[]>([]);
   const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
   const load = () =>
     api.users().then((r) => {
       setUsers(r.users);
@@ -351,17 +352,22 @@ export function Team() {
   }, []);
   async function add(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    const name = String(f.get("name"));
+    const email = String(f.get("email"));
+    const role = String(f.get("role")) as UserRole;
+    setError("");
+    setAdding(true);
     try {
-      await api.addUser({
-        name: String(f.get("name")),
-        email: String(f.get("email")),
-        role: String(f.get("role")) as UserRole,
-      });
-      e.currentTarget.reset();
-      load();
+      await api.addUser({ name, email, role });
+      form.reset();
+      await load();
+      toast.success(`${name} added as ${role}`);
     } catch (c) {
       setError(c instanceof Error ? c.message : "Could not add member");
+    } finally {
+      setAdding(false);
     }
   }
   async function changeRole(user: WorkspaceUser, role: UserRole) {
@@ -414,8 +420,13 @@ export function Team() {
                     <SelectItem value="owner">Owner</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button size="icon">
-                  <Plus />
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={adding}
+                  aria-label="Add team member"
+                >
+                  {adding ? <Loader2 className="animate-spin" /> : <Plus />}
                 </Button>
               </div>
             </form>
