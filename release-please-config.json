@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "4d535dd8ae2152c240e77e4c1b13e2ce4f07357c",
+  "release-type": "node",
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "package-name": "slotloom",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

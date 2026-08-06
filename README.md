@@ -9,6 +9,7 @@
 
   <p>
     <a href="https://github.com/v9dev/Slotloom/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/v9dev/Slotloom/actions/workflows/ci.yml/badge.svg"></a>
+    <a href="https://github.com/v9dev/Slotloom/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/v9dev/Slotloom?display_name=tag&sort=semver"></a>
     <a href="./LICENSE"><img alt="Apache 2.0 License" src="https://img.shields.io/badge/license-Apache--2.0-2563eb.svg"></a>
     <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white">
     <img alt="pnpm 10" src="https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&logoColor=white">
@@ -97,6 +98,13 @@ pnpm deploy:api
 Deploy the Worker manually with Wrangler. Connect the Pages project to `main` in
 the Cloudflare dashboard and let Pages build the frontend with `pnpm build` and
 publish `dist`.
+
+## Releases
+
+After CI passes on `main`, Release Please opens or updates a version PR from
+Conventional Commits. Merging that PR updates the changelog and package version,
+then creates a Git tag and GitHub Release. It never publishes to npm or deploys
+Cloudflare resources.
 
 ## Quality
 

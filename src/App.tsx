@@ -1,19 +1,29 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { resolveAppRoute } from "@/routes";
 
 const Admin = lazy(() => import("./components/Admin"));
 const Login = lazy(() => import("./components/Login"));
 const ManageBooking = lazy(() => import("./components/ManageBooking"));
+const NotFound = lazy(() => import("./components/NotFound"));
 const PublicBooking = lazy(() => import("./components/PublicBooking"));
 
 export default function App() {
-  const path = window.location.pathname;
-  let page = <Login />;
-  if (path.startsWith("/admin")) page = <Admin />;
-  const manageToken = path.match(/^\/manage\/([^/]+)/)?.[1];
-  if (manageToken)
-    page = <ManageBooking token={decodeURIComponent(manageToken)} />;
-  const slug = path.match(/^\/book\/([^/]+)/)?.[1];
-  if (slug) page = <PublicBooking slug={decodeURIComponent(slug)} />;
+  const [path, setPath] = useState(window.location.pathname);
+  useEffect(() => {
+    const update = () => setPath(window.location.pathname);
+    addEventListener("popstate", update);
+    return () => removeEventListener("popstate", update);
+  }, []);
+
+  const route = resolveAppRoute(path);
+  let page;
+  if (route.kind === "admin") page = <Admin />;
+  else if (route.kind === "manage")
+    page = <ManageBooking token={route.token} />;
+  else if (route.kind === "booking") page = <PublicBooking slug={route.slug} />;
+  else if (route.kind === "not-found") page = <NotFound path={path} />;
+  else page = <Login />;
+
   return (
     <Suspense
       fallback={
