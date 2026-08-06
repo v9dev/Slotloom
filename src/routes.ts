@@ -10,6 +10,7 @@ const adminSections = new Set([
 
 export type AppRoute =
   | { kind: "home" }
+  | { kind: "login" }
   | { kind: "admin" }
   | { kind: "legal"; document: "privacy" | "terms" }
   | { kind: "booking"; slug: string }
@@ -31,7 +32,8 @@ function decodedSegment(value: string) {
 
 export function resolveAppRoute(pathname: string): AppRoute {
   const path = normalizedPath(pathname);
-  if (path === "/" || path === "/login") return { kind: "home" };
+  if (path === "/") return { kind: "home" };
+  if (path === "/login") return { kind: "login" };
   if (path === "/privacy") return { kind: "legal", document: "privacy" };
   if (path === "/terms") return { kind: "legal", document: "terms" };
 

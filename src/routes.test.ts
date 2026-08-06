@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { resolveAppRoute } from "./routes";
 
 describe("resolveAppRoute", () => {
-  it.each(["/", "/login", "/login/"])("resolves %s as home", (path) => {
-    expect(resolveAppRoute(path)).toEqual({ kind: "home" });
+  it("resolves the public homepage", () => {
+    expect(resolveAppRoute("/")).toEqual({ kind: "home" });
+  });
+
+  it.each(["/login", "/login/"])("resolves %s as login", (path) => {
+    expect(resolveAppRoute(path)).toEqual({ kind: "login" });
   });
 
   it.each([

@@ -1,7 +1,8 @@
 import { ArrowRight, LockKeyhole } from "lucide-react";
+import { useEffect } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PublicFooter } from "@/components/PublicFooter";
-import { brand } from "@/brand";
+import { brand, setPageTitle } from "@/brand";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,11 +12,15 @@ import {
 } from "@/components/ui/card";
 
 export default function Login() {
+  useEffect(() => setPageTitle("Sign in"), []);
+
   return (
     <main className="flex min-h-svh flex-col items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm border-border/80 shadow-xl shadow-black/[.04]">
         <CardHeader className="space-y-10 pb-4">
-          <BrandLogo className="self-start" />
+          <a href="/" aria-label={`${brand.name} home`}>
+            <BrandLogo className="self-start" />
+          </a>
           <div className="space-y-3">
             <span className="flex size-10 items-center justify-center rounded-xl border bg-background">
               <LockKeyhole className="size-4" />
@@ -25,7 +30,8 @@ export default function Login() {
                 Sign in to your workspace
               </h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {brand.tagline} Manage scheduling links, responses, and your team.
+                {brand.tagline} Manage scheduling links, responses, and your
+                team.
               </p>
             </div>
           </div>
