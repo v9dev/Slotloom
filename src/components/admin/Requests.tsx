@@ -1,45 +1,20 @@
 import {
-  Activity,
-  Archive,
-  Bell,
-  BarChart3,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
-  CircleDashed,
   Clock3,
-  Copy,
   Download,
-  FileText,
-  LayoutDashboard,
-  Link2,
-  Loader2,
-  LogOut,
   Mail,
-  Menu,
-  Plus,
   Search,
-  Settings,
-  ShieldCheck,
   Trash2,
-  Users,
-  XCircle,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/api";
 import type {
   Booking,
   BookingDetail,
   BookingLink,
-  DashboardData,
-  UserActivity,
-  UserRole,
   WorkspaceUser,
   WorkflowStatus,
-  EmailTemplate,
-  Notification,
-  LinkAnalytics,
-  ActivityRecord,
 } from "@/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -48,21 +23,16 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -80,7 +50,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -102,46 +71,25 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
-import { BrandLogo } from "@/components/BrandLogo";
-import { brand } from "@/brand";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { browserTimeZone, TimeZoneSelect } from "@/components/TimeZoneSelect";
+import { CreateMeetingDialog } from "./CreateMeetingDialog";
 
 import {
-  DateSelect,
-  DateTimeSelect,
   Empty,
   Field,
   Loading,
   Shell,
-  Stat,
   StatusBadge,
-  TimeSelect,
-  dateAfter,
-  dateValue,
   fmt,
-  formatDateOnly,
-  go,
   labels,
-  localDateTime,
-  slugFrom,
-  weekDays,
 } from "./shared";
-export function Requests({ canEdit }: { canEdit: boolean }) {
+export function Requests({
+  canAssign,
+  canEdit,
+}: {
+  canAssign: boolean;
+  canEdit: boolean;
+}) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
@@ -166,8 +114,8 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
   );
   useEffect(() => {
     api.links().then((r) => setLinks(r.links));
-    api.assignees().then((r) => setAssignees(r.users));
-  }, []);
+    if (canAssign) api.assignees().then((r) => setAssignees(r.users));
+  }, [canAssign]);
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(true);
@@ -189,22 +137,25 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
   }, [page, query, status, linkFilter]);
   useEffect(() => setSelectedIds([]), [page, query, status, linkFilter]);
   async function applyBulk() {
-    await api.bulkBookings({
+    const update = await api.bulkBookings({
       ids: selectedIds,
       status: bulkStatus,
-      assignedTo: bulkAssignee === "unchanged" ? undefined : bulkAssignee,
+      assignedTo:
+        canAssign && bulkAssignee !== "unchanged"
+          ? bulkAssignee
+          : undefined,
     });
-    toast.success(`${selectedIds.length} responses updated`);
+    toast.success(`${update.updated} responses updated`);
     setSelectedIds([]);
-    const result = await api.bookings({
+    const refreshed = await api.bookings({
       page,
       pageSize: 20,
       q: query,
       status: status === "all" ? "" : status,
       link: linkFilter === "all" ? "" : linkFilter,
     });
-    setBookings(result.bookings);
-    setPagination(result.pagination);
+    setBookings(refreshed.bookings);
+    setPagination(refreshed.pagination);
   }
   async function exportCsv() {
     const blob = await api.exportBookings({
@@ -240,7 +191,7 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
       }
     >
       <Card>
-        {selectedIds.length > 0 && (
+        {canEdit && selectedIds.length > 0 && (
           <div className="flex flex-col gap-3 border-b bg-blue-500/5 p-4 sm:flex-row sm:items-center">
             <p className="flex-1 text-sm font-medium">
               {selectedIds.length} selected
@@ -260,19 +211,21 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={bulkAssignee} onValueChange={setBulkAssignee}>
-              <SelectTrigger className="w-full bg-background sm:w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unchanged">Keep assignment</SelectItem>
-                {assignees.map((user) => (
-                  <SelectItem key={user.id} value={user.email}>
-                    Assign to {user.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {canAssign && (
+              <Select value={bulkAssignee} onValueChange={setBulkAssignee}>
+                <SelectTrigger className="w-full bg-background sm:w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unchanged">Keep assignment</SelectItem>
+                  {assignees.map((user) => (
+                    <SelectItem key={user.id} value={user.email}>
+                      Assign to {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button size="sm" onClick={applyBulk}>
               Apply changes
             </Button>
@@ -341,17 +294,19 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    aria-label="Select all visible"
-                    checked={
-                      rows.length > 0 && selectedIds.length === rows.length
-                    }
-                    onCheckedChange={(checked) =>
-                      setSelectedIds(checked ? rows.map((row) => row.id) : [])
-                    }
-                  />
-                </TableHead>
+                {canEdit && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label="Select all visible"
+                      checked={
+                        rows.length > 0 && selectedIds.length === rows.length
+                      }
+                      onCheckedChange={(checked) =>
+                        setSelectedIds(checked ? rows.map((row) => row.id) : [])
+                      }
+                    />
+                  </TableHead>
+                )}
                 <TableHead>Person</TableHead>
                 <TableHead>Selected time</TableHead>
                 <TableHead>Link</TableHead>
@@ -366,19 +321,21 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
                     key={b.id}
                     onClick={() => setSelected(b.id)}
                   >
-                    <TableCell onClick={(event) => event.stopPropagation()}>
-                      <Checkbox
-                        aria-label={`Select ${b.name}`}
-                        checked={selectedIds.includes(b.id)}
-                        onCheckedChange={(checked) =>
-                          setSelectedIds((current) =>
-                            checked
-                              ? [...current, b.id]
-                              : current.filter((id) => id !== b.id),
-                          )
-                        }
-                      />
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          aria-label={`Select ${b.name}`}
+                          checked={selectedIds.includes(b.id)}
+                          onCheckedChange={(checked) =>
+                            setSelectedIds((current) =>
+                              checked
+                                ? [...current, b.id]
+                                : current.filter((id) => id !== b.id),
+                            )
+                          }
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <p className="font-medium">{b.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -404,19 +361,21 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
                 onClick={() => setSelected(b.id)}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span onClick={(event) => event.stopPropagation()}>
-                    <Checkbox
-                      aria-label={`Select ${b.name}`}
-                      checked={selectedIds.includes(b.id)}
-                      onCheckedChange={(checked) =>
-                        setSelectedIds((current) =>
-                          checked
-                            ? [...current, b.id]
-                            : current.filter((id) => id !== b.id),
-                        )
-                      }
-                    />
-                  </span>
+                  {canEdit && (
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        aria-label={`Select ${b.name}`}
+                        checked={selectedIds.includes(b.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedIds((current) =>
+                            checked
+                              ? [...current, b.id]
+                              : current.filter((id) => id !== b.id),
+                          )
+                        }
+                      />
+                    </span>
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{b.name}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -477,6 +436,7 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
       )}
       <RequestDialog
         id={selected}
+        canAssign={canAssign}
         canEdit={canEdit}
         close={() => setSelected(null)}
       />
@@ -486,22 +446,25 @@ export function Requests({ canEdit }: { canEdit: boolean }) {
 
 export function RequestDialog({
   id,
+  canAssign,
   canEdit,
   close,
 }: {
   id: string | null;
+  canAssign: boolean;
   canEdit: boolean;
   close: () => void;
 }) {
   const [detail, setDetail] = useState<BookingDetail>();
   const [assignees, setAssignees] = useState<WorkspaceUser[]>([]);
   const [error, setError] = useState("");
+  const [meetingOpen, setMeetingOpen] = useState(false);
   useEffect(() => {
     if (id) {
       api.booking(id).then(setDetail);
-      api.assignees().then((r) => setAssignees(r.users));
+      if (canAssign) api.assignees().then((r) => setAssignees(r.users));
     }
-  }, [id]);
+  }, [canAssign, id]);
   if (!id) return null;
   const bookingId = id;
   async function save(e: FormEvent<HTMLFormElement>) {
@@ -511,16 +474,13 @@ export function RequestDialog({
     try {
       await api.updateBooking(bookingId, {
         status: String(f.get("status")) as WorkflowStatus,
-        meetingUrl: String(f.get("meetingUrl")),
-        meetingProviderPreference: String(
-          f.get("meetingProviderPreference") ||
-            detail?.booking.meetingProviderPreference ||
-            "workspace",
-        ) as Booking["meetingProviderPreference"],
-        assignedTo: assignedTo === "unassigned" ? "" : assignedTo,
         adminNote: String(f.get("note")),
-        finalStartsAt: String(f.get("finalStartsAt")),
-        meetingNotes: String(f.get("meetingNotes")),
+        ...(canAssign
+          ? {
+              assignedTo:
+                assignedTo === "unassigned" ? "" : assignedTo,
+            }
+          : {}),
       });
       setDetail(await api.booking(bookingId));
       toast.success("Response updated");
@@ -583,7 +543,11 @@ export function RequestDialog({
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Status">
-                    <Select name="status" defaultValue={detail.booking.status}>
+                    <Select
+                      name="status"
+                      defaultValue={detail.booking.status}
+                      disabled={!canEdit}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -597,87 +561,76 @@ export function RequestDialog({
                     </Select>
                   </Field>
                   <Field label="Assigned to">
-                    <Select
-                      name="assignedTo"
-                      defaultValue={detail.booking.assignedTo || "unassigned"}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose owner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {assignees.map((user) => (
-                          <SelectItem key={user.id} value={user.email}>
-                            {user.name} · {user.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Meeting method">
-                    <Select
-                      name="meetingProviderPreference"
-                      defaultValue={detail.booking.meetingProviderPreference}
-                      disabled={Boolean(detail.booking.meetingProviderEventId)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="workspace">
-                          Workspace default
-                        </SelectItem>
-                        <SelectItem value="google">Google Meet</SelectItem>
-                        <SelectItem value="microsoft">
-                          Microsoft Teams
-                        </SelectItem>
-                        <SelectItem value="manual">Manual link</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Final meeting time">
-                    <DateTimeSelect
-                      name="finalStartsAt"
-                      initialValue={localDateTime(
-                        detail.booking.finalStartsAt || detail.booking.startsAt,
-                      )}
-                    />
-                  </Field>
-                  <Field
-                    label={
-                      detail.booking.meetingProvider
-                        ? `${detail.booking.meetingProvider === "google" ? "Google Meet" : "Microsoft Teams"} URL`
-                        : "Meeting URL"
-                    }
-                  >
-                    <Input
-                      key={detail.booking.meetingUrl || "manual-meeting-url"}
-                      name="meetingUrl"
-                      type="url"
-                      readOnly={Boolean(detail.booking.meetingProviderEventId)}
-                      defaultValue={detail.booking.meetingUrl || ""}
-                      placeholder="Created automatically on Confirm and invite"
-                    />
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      {detail.booking.meetingProviderEventId
-                        ? `Managed through ${detail.booking.meetingProviderAccount || "the connected organizer calendar"}. Time changes and cancellation sync automatically.`
-                        : "Enter a manual HTTPS link, or leave blank to use the default provider in Calendar and email integrations."}
-                    </p>
+                    {canAssign ? (
+                      <Select
+                        name="assignedTo"
+                        defaultValue={
+                          detail.booking.assignedTo || "unassigned"
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose owner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {assignees.map((user) => (
+                            <SelectItem key={user.id} value={user.email}>
+                              {user.name} · {user.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                        {detail.booking.assignedTo ||
+                          "Unassigned. Saving or creating the meeting claims it for you."}
+                      </div>
+                    )}
                   </Field>
                   <Field label="Internal note">
                     <Textarea
                       name="note"
                       defaultValue={detail.booking.adminNote || ""}
+                      disabled={!canEdit}
                     />
                   </Field>
-                  <div className="sm:col-span-2">
-                    <Field label="Meeting instructions">
-                      <Textarea
-                        name="meetingNotes"
-                        defaultValue={detail.booking.meetingNotes || ""}
-                        placeholder="Agenda or joining instructions"
-                      />
-                    </Field>
+                  <div className="space-y-3 rounded-xl border p-4 sm:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {detail.booking.meetingTitle}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {detail.booking.meetingSentAt
+                            ? `Created for ${fmt(detail.booking.finalStartsAt || detail.booking.startsAt)}`
+                            : "Review the title, organizer, provider, and attendees before creating the meeting."}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">
+                        {detail.booking.meetingSentAt
+                          ? detail.booking.meetingProvider === "google"
+                            ? "Google Meet"
+                            : detail.booking.meetingProvider === "microsoft"
+                              ? "Microsoft Teams"
+                              : "Manual meeting"
+                          : "Not created"}
+                      </Badge>
+                    </div>
+                    {detail.booking.meetingUrl && (
+                      <a
+                        className="block truncate text-sm underline underline-offset-4"
+                        href={detail.booking.meetingUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {detail.booking.meetingUrl}
+                      </a>
+                    )}
+                    {detail.booking.meetingNotes && (
+                      <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                        {detail.booking.meetingNotes}
+                      </p>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -720,6 +673,22 @@ export function RequestDialog({
                     </div>
                   ))}
                 </div>
+                {detail.attendees.length > 1 && (
+                  <div className="mt-4 rounded-xl border p-4">
+                    <p className="text-sm font-medium">
+                      Suggested additional attendees
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {detail.attendees
+                        .filter((attendee) => !attendee.primary)
+                        .map((attendee) => (
+                          <p className="text-sm" key={attendee.email}>
+                            {attendee.name} · {attendee.email}
+                          </p>
+                        ))}
+                    </div>
+                  </div>
+                )}
                 {canEdit &&
                   detail.booking.email !==
                     `deleted+${bookingId}@invalid.local` && (
@@ -741,9 +710,11 @@ export function RequestDialog({
                           </AlertDialogTitle>
                           <AlertDialogDescription>
                             This permanently removes the visitor’s identity,
-                            contact details, device information, notes, and
-                            self-service access. Anonymous meeting statistics
-                            are retained. This cannot be undone.
+                            contact details, additional attendee list, stored
+                            meeting title, feedback text, device information,
+                            notes, notifications, and self-service access.
+                            Anonymous meeting statistics are retained. This
+                            cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -786,7 +757,7 @@ export function RequestDialog({
                             </Badge>
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {fmt(email.created_at)}
+                            {email.recipient} · {fmt(email.created_at)}
                             {email.delivery_method
                               ? ` · ${email.delivery_method}`
                               : ""}
@@ -836,24 +807,21 @@ export function RequestDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => send("meeting_details")}
-                  disabled={Boolean(
-                    detail.booking.meetingProviderEventId &&
-                      detail.booking.meetingUrl,
-                  )}
+                  onClick={() => setMeetingOpen(true)}
+                  disabled={Boolean(detail.booking.meetingSentAt)}
                 >
                   <CalendarDays />
-                  {detail.booking.meetingProviderEventId &&
-                  detail.booking.meetingUrl
-                    ? "Calendar invite sent"
+                  {detail.booking.meetingSentAt
+                    ? "Meeting created"
                     : detail.booking.meetingProviderEventId
-                      ? "Finish calendar invite"
-                      : "Confirm and invite"}
+                      ? "Finish meeting"
+                      : "Create meeting"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => send("reminder")}
+                  disabled={!detail.booking.meetingSentAt}
                 >
                   <Clock3 />
                   Send reminder
@@ -879,6 +847,14 @@ export function RequestDialog({
               </div>
             )}
           </form>
+        )}
+        {canEdit && (
+          <CreateMeetingDialog
+            bookingId={bookingId}
+            onCreated={async () => setDetail(await api.booking(bookingId))}
+            onOpenChange={setMeetingOpen}
+            open={meetingOpen}
+          />
         )}
       </DialogContent>
     </Dialog>

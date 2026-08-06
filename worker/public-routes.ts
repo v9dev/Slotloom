@@ -37,6 +37,11 @@ import {
   cancelProviderMeeting,
   syncProviderMeeting,
 } from "./calendar-integrations";
+import {
+  AttendeeInputError,
+  attendeeInsertStatements,
+  parseAdditionalAttendees,
+} from "./meeting-attendees";
 export async function publicLink(request: Request, env: Env, slug: string) {
   const link = await getLink(env, slug, true);
   if (!link || link.status !== "active")
@@ -74,10 +79,9 @@ export async function publicLink(request: Request, env: Env, slug: string) {
     return json({
       link: normalizeLink(link, rules),
       turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : null,
-      slots: slotsForSchedule(link, rules).map((slot) => ({
-        ...slot,
-        booked: unavailable.has(slot.startsAt),
-      })),
+      slots: slotsForSchedule(link, rules)
+        .filter((slot) => !unavailable.has(slot.startsAt))
+        .map((slot) => ({ ...slot, booked: false })),
     });
   }
   if (request.method !== "POST")
@@ -103,6 +107,19 @@ export async function publicLink(request: Request, env: Env, slug: string) {
   const phone = safeText(body.phone, 40);
   const startsAt = safeText(body.startsAt, 40);
   const timeZone = safeText(body.timeZone, 80) || "UTC";
+  const meetingTitle = link.allow_custom_meeting_title
+    ? safeText(body.meetingTitle, 140)
+    : "";
+  let attendees: Array<{ name: string; email: string }> = [];
+  try {
+    attendees = link.allow_additional_attendees
+      ? parseAdditionalAttendees(body.attendees, email)
+      : [];
+  } catch (error) {
+    if (error instanceof AttendeeInputError)
+      return json({ error: error.message }, 400);
+    throw error;
+  }
   if (name.length < 2) return json({ error: "Please enter your name." }, 400);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return json({ error: "Please enter a valid email." }, 400);
@@ -125,11 +142,11 @@ export async function publicLink(request: Request, env: Env, slug: string) {
       })
     | undefined;
   try {
-    await env.DB.prepare(
-      `INSERT INTO bookings (id, booking_link_id, name, email, phone, company, starts_at, time_zone, message, workflow_status, device_type, user_agent, browser_language, referrer, country, region, city, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-      .bind(
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO bookings (id, booking_link_id, name, email, phone, company, starts_at, time_zone, message, workflow_status, meeting_title, device_type, user_agent, browser_language, referrer, country, region, city, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
         id,
         link.id,
         name,
@@ -139,6 +156,7 @@ export async function publicLink(request: Request, env: Env, slug: string) {
         startsAt,
         timeZone,
         null,
+        meetingTitle || null,
         deviceType(userAgent),
         userAgent || null,
         safeText(request.headers.get("accept-language"), 120) || null,
@@ -148,8 +166,9 @@ export async function publicLink(request: Request, env: Env, slug: string) {
         safeText(cf?.city, 120) || null,
         now,
         now,
-      )
-      .run();
+      ),
+      ...attendeeInsertStatements(env, id, attendees, "visitor", now),
+    ]);
   } catch (error) {
     if (String(error).includes("UNIQUE"))
       return json(
@@ -201,14 +220,30 @@ export async function parseLinkInput(request: Request) {
   const status = safeText(body.status, 20) as LinkStatus;
   const validFrom = safeText(body.validFrom, 10);
   const validUntil = safeText(body.validUntil, 10);
-  const validDate = (value: string) =>
-    !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const dateNumber = (value: string) => {
+    if (!value) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return Number.NaN;
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(parsed) &&
+      new Date(parsed).toISOString().slice(0, 10) === value
+      ? parsed
+      : Number.NaN;
+  };
+  const validFromTime = dateNumber(validFrom);
+  const validUntilTime = dateNumber(validUntil);
+  const rangeDays =
+    validFromTime !== null &&
+    validUntilTime !== null &&
+    Number.isFinite(validFromTime) &&
+    Number.isFinite(validUntilTime)
+      ? Math.round((validUntilTime - validFromTime) / 86_400_000)
+      : null;
   if (!title || !slug || !availability.length || !LINK_STATUSES.has(status))
     return null;
   if (
-    !validDate(validFrom) ||
-    !validDate(validUntil) ||
-    (validFrom && validUntil && validFrom > validUntil)
+    Number.isNaN(validFromTime) ||
+    Number.isNaN(validUntilTime) ||
+    (rangeDays !== null && (rangeDays < 0 || rangeDays > 365))
   )
     return null;
   return {
@@ -220,12 +255,17 @@ export async function parseLinkInput(request: Request) {
     slotIntervalMinutes: safeNumber(body.slotIntervalMinutes, 30, 5, 240),
     bufferMinutes: safeNumber(body.bufferMinutes, 0, 0, 120),
     timeZone: safeText(body.timeZone, 80) || "UTC",
-    daysAhead: safeNumber(body.daysAhead, 14, 1, 365),
-    minimumNoticeHours: safeNumber(body.minimumNoticeHours, 4, 0, 720),
+    daysAhead:
+      rangeDays === null
+        ? safeNumber(body.daysAhead, 30, 1, 365)
+        : Math.max(1, rangeDays),
+    minimumNoticeHours: safeNumber(body.minimumNoticeHours, 0, 0, 720),
     validFrom: validFrom || null,
     validUntil: validUntil || null,
     status,
     allowSlotHolds: Boolean(body.allowSlotHolds),
+    allowCustomMeetingTitle: Boolean(body.allowCustomMeetingTitle),
+    allowAdditionalAttendees: Boolean(body.allowAdditionalAttendees),
     availability,
   };
 }
@@ -294,10 +334,9 @@ export async function manageBooking(request: Request, env: Env, token: string) {
         linkTitle: managed.link_title,
         timeZone: managed.time_zone,
       },
-      slots: slotsForSchedule(managed, rules).map((slot) => ({
-        ...slot,
-        booked: unavailable.has(slot.startsAt),
-      })),
+      slots: slotsForSchedule(managed, rules)
+        .filter((slot) => !unavailable.has(slot.startsAt))
+        .map((slot) => ({ ...slot, booked: false })),
       feedback,
     });
   }
@@ -488,6 +527,7 @@ export function normalizeUser(user: WorkspaceUser) {
     lastSeenAt: user.last_seen_at,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
+    emailProviderPreference: user.email_provider_preference || "auto",
   };
 }
 

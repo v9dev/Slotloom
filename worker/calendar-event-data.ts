@@ -45,16 +45,20 @@ function meetingDescription(booking: BookingRow) {
     .join("\n\n");
 }
 
-export function googleEventBody(booking: BookingRow, create: boolean) {
+export function googleEventBody(
+  booking: BookingRow,
+  create: boolean,
+  attendees = [{ name: booking.name, email: booking.email }],
+) {
   const { start, end } = meetingTimes(booking);
   return {
-    summary: booking.link_title || "Meeting",
+    summary: booking.meeting_title || booking.link_title || "Meeting",
     description: meetingDescription(booking),
     start: { dateTime: start.toISOString(), timeZone: "UTC" },
     end: { dateTime: end.toISOString(), timeZone: "UTC" },
     ...(create
       ? {
-          attendees: [{ email: booking.email }],
+          attendees: attendees.map((attendee) => ({ email: attendee.email })),
           guestsCanInviteOthers: false,
           guestsCanModify: false,
           conferenceData: {
@@ -68,22 +72,27 @@ export function googleEventBody(booking: BookingRow, create: boolean) {
   };
 }
 
-export function microsoftEventBody(booking: BookingRow, create: boolean) {
+export function microsoftEventBody(
+  booking: BookingRow,
+  create: boolean,
+  attendees = [{ name: booking.name, email: booking.email }],
+) {
   const { start, end } = meetingTimes(booking);
   const dateTime = (date: Date) => date.toISOString().replace(/Z$/, "");
   return {
-    subject: booking.link_title || "Meeting",
+    subject: booking.meeting_title || booking.link_title || "Meeting",
     body: { contentType: "text", content: meetingDescription(booking) },
     start: { dateTime: dateTime(start), timeZone: "UTC" },
     end: { dateTime: dateTime(end), timeZone: "UTC" },
     ...(create
       ? {
-          attendees: [
-            {
-              emailAddress: { address: booking.email, name: booking.name },
-              type: "required",
+          attendees: attendees.map((attendee) => ({
+            emailAddress: {
+              address: attendee.email,
+              name: attendee.name,
             },
-          ],
+            type: "required",
+          })),
           isOnlineMeeting: true,
           onlineMeetingProvider: "teamsForBusiness",
           transactionId: booking.id,

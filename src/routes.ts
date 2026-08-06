@@ -11,6 +11,7 @@ const adminSections = new Set([
 export type AppRoute =
   | { kind: "home" }
   | { kind: "admin" }
+  | { kind: "legal"; document: "privacy" | "terms" }
   | { kind: "booking"; slug: string }
   | { kind: "manage"; token: string }
   | { kind: "not-found" };
@@ -31,6 +32,8 @@ function decodedSegment(value: string) {
 export function resolveAppRoute(pathname: string): AppRoute {
   const path = normalizedPath(pathname);
   if (path === "/" || path === "/login") return { kind: "home" };
+  if (path === "/privacy") return { kind: "legal", document: "privacy" };
+  if (path === "/terms") return { kind: "legal", document: "terms" };
 
   const admin = path.match(/^\/admin(?:\/([^/]+))?$/);
   if (admin && (!admin[1] || adminSections.has(admin[1])))

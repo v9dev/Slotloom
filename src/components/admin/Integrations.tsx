@@ -1,21 +1,19 @@
 import {
   CalendarCheck2,
   CheckCircle2,
-  Clipboard,
-  KeyRound,
   Loader2,
   Mail,
   PlugZap,
   Send,
   ShieldCheck,
-  Trash2,
+  Unplug,
 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/api";
 import type {
   CalendarProvider,
-  EmailDeliveryMethod,
   EmailDeliveryOverview,
+  EmailFallbackMethod,
   IntegrationOverview,
   IntegrationProvider,
   WorkspaceUser,
@@ -30,7 +28,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -39,40 +36,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Field, Loading, Shell, fmt } from "./shared";
+import { Field, Loading, Shell } from "./shared";
 
 export function Integrations({ user }: { user: WorkspaceUser }) {
   const [overview, setOverview] = useState<IntegrationOverview>();
   const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryOverview>();
-  const [emailMethod, setEmailMethod] = useState<EmailDeliveryMethod>("worker");
+  const [emailMethod, setEmailMethod] = useState<EmailFallbackMethod>("worker");
   const [workerFallback, setWorkerFallback] = useState(false);
   const [emailBusy, setEmailBusy] = useState<"save" | "test" | null>(null);
   const [defaultProvider, setDefaultProvider] = useState<
     "manual" | CalendarProvider
   >("manual");
   const [savingDefault, setSavingDefault] = useState(false);
+  const [savingCalendarFallback, setSavingCalendarFallback] = useState(false);
+
   const load = async () => {
-    const [result, delivery] = await Promise.all([
+    const [integrationResult, deliveryResult] = await Promise.all([
       api.integrations(),
       api.emailDelivery(),
     ]);
-    setOverview(result);
-    setDefaultProvider(result.defaultProvider);
-    setEmailDelivery(delivery);
-    setEmailMethod(delivery.method);
-    setWorkerFallback(delivery.workerFallback);
+    setOverview(integrationResult);
+    setDefaultProvider(integrationResult.defaultProvider);
+    setEmailDelivery(deliveryResult);
+    setEmailMethod(deliveryResult.method);
+    setWorkerFallback(deliveryResult.workerFallback);
   };
 
   useEffect(() => {
@@ -81,12 +69,10 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
     const provider = query.get("provider");
     if (result === "connected")
       toast.success(
-        `${provider === "microsoft" ? "Microsoft Teams" : "Google Meet"} connected`,
+        `${provider === "microsoft" ? "Microsoft" : "Google"} connected`,
       );
     else if (result === "error")
-      toast.error(
-        "The calendar connection was not completed. Check the provider configuration and try again.",
-      );
+      toast.error("The provider connection was not completed. Try again.");
     if (result) history.replaceState({}, "", "/admin/integrations");
     load().catch((error) =>
       toast.error(
@@ -100,13 +86,30 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
     try {
       await api.setDefaultMeetingProvider(defaultProvider);
       await load();
-      toast.success("Automatic meeting provider updated");
+      toast.success("Meeting provider suggestion updated");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not save the provider.",
       );
     } finally {
       setSavingDefault(false);
+    }
+  }
+
+  async function setCalendarFallback(enabled: boolean) {
+    setSavingCalendarFallback(true);
+    try {
+      await api.setCalendarOwnerFallback(enabled);
+      await load();
+      toast.success("Calendar fallback updated");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update calendar fallback.",
+      );
+    } finally {
+      setSavingCalendarFallback(false);
     }
   }
 
@@ -150,39 +153,29 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
   const emailDeliveryChanged =
     emailMethod !== emailDelivery.method ||
     (emailMethod !== "worker" &&
+      emailMethod !== "none" &&
       workerFallback !== emailDelivery.workerFallback);
+
   return (
     <Shell
-      title="Calendar and email integrations"
-      description="Create online meetings and choose how Slotloom sends transactional email."
+      title="Calendar and email"
+      description="Choose meeting defaults, connect the owner account, and control transactional email fallbacks."
     >
       <div className="space-y-4">
-        {!overview.encryptionReady && (
-          <Alert variant="destructive">
-            <KeyRound />
-            <AlertTitle>Worker encryption key required</AlertTitle>
-            <AlertDescription>
-              Add <code>OAUTH_ENCRYPTION_KEY</code> as an encrypted Cloudflare
-              Worker secret before saving provider credentials. This external
-              root key cannot safely be stored in the same database it protects.
-            </AlertDescription>
-          </Alert>
-        )}
-
         <Card>
           <CardHeader>
             <span className="flex size-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-300">
               <CalendarCheck2 className="size-4" />
             </span>
-            <CardTitle className="pt-3">Meeting automation</CardTitle>
+            <CardTitle className="pt-3">Meeting automation defaults</CardTitle>
             <CardDescription>
-              Slotloom creates the provider event, saves the joining link, and
-              lets Google or Microsoft send the single native calendar invite.
+              The response handler chooses a provider for each meeting. This is
+              the initial suggestion in the Create meeting dialog.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="flex-1">
-              <Field label="Default meeting provider">
+              <Field label="Suggested meeting provider">
                 <Select
                   value={defaultProvider}
                   onValueChange={(value) =>
@@ -207,27 +200,67 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
                 Save provider
               </Button>
             )}
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:basis-full">
+              <div>
+                <p className="text-sm font-medium">Owner calendar fallback</p>
+                <p className="text-xs text-muted-foreground">
+                  Use an owner connection when the selected organizer has not
+                  connected the chosen provider.
+                </p>
+              </div>
+              <Switch
+                checked={overview.ownerFallbackEnabled}
+                onCheckedChange={setCalendarFallback}
+                disabled={!overview.canManageConfig || savingCalendarFallback}
+                aria-label="Allow owner calendar fallback"
+              />
+            </div>
           </CardContent>
         </Card>
+
+        {user.role === "owner" && (
+          <Card>
+            <CardHeader>
+              <span className="flex size-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                <PlugZap className="size-4" />
+              </span>
+              <CardTitle className="pt-3">Owner provider accounts</CardTitle>
+              <CardDescription>
+                Connect the owner calendars used for fallback. Email permission
+                is optional and can be enabled later.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 xl:grid-cols-2">
+              {overview.providers.map((provider) => (
+                <OwnerConnection
+                  key={provider.provider}
+                  provider={provider}
+                  ownerEmail={user.email}
+                  encryptionReady={overview.encryptionReady}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
             <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <Mail className="size-4" />
             </span>
-            <CardTitle className="pt-3">Transactional email delivery</CardTitle>
+            <CardTitle className="pt-3">Workspace email fallback</CardTitle>
             <CardDescription>
-              Choose the workspace sender for availability receipts, reminders,
-              follow-ups, and manual meeting details. Provider calendar invites
-              are never duplicated by this setting.
+              Slotloom first uses the assigned organizer’s preferred connected
+              mailbox. This controls what happens when no personal mailbox is
+              available. Calendar invitations are not duplicated.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <Field label="Delivery method">
+            <Field label="Fallback method">
               <Select
                 value={emailMethod}
                 onValueChange={(value) =>
-                  setEmailMethod(value as EmailDeliveryMethod)
+                  setEmailMethod(value as EmailFallbackMethod)
                 }
                 disabled={!emailDelivery.canManage || Boolean(emailBusy)}
               >
@@ -235,13 +268,12 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">No workspace fallback</SelectItem>
                   <SelectItem value="worker">
                     Cloudflare Worker Email
                   </SelectItem>
-                  <SelectItem value="google">Connected Google Gmail</SelectItem>
-                  <SelectItem value="microsoft">
-                    Connected Microsoft Outlook
-                  </SelectItem>
+                  <SelectItem value="google">Owner Gmail</SelectItem>
+                  <SelectItem value="microsoft">Owner Outlook</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -252,32 +284,27 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
                 available={emailDelivery.workerAvailable}
                 detail={emailDelivery.workerFrom || "Binding not configured"}
               />
-              {overview.providers.map((provider) => {
-                const connection = provider.connections.find(
-                  (item) => item.isCurrentUser,
-                );
-                return (
-                  <DeliveryStatus
-                    key={provider.provider}
-                    label={provider.provider === "google" ? "Gmail" : "Outlook"}
-                    available={Boolean(
-                      emailDelivery.oauthAvailable[provider.provider],
-                    )}
-                    detail={
-                      connection
-                        ? connection.mailCapable
-                          ? connection.providerEmail
-                          : "Reauthorize for email"
-                        : emailDelivery.oauthAvailable[provider.provider]
-                          ? "Owner fallback available"
-                          : "Not connected"
-                    }
-                  />
-                );
-              })}
+              <DeliveryStatus
+                label="Gmail"
+                available={emailDelivery.oauthAvailable.google}
+                detail={
+                  emailDelivery.oauthAvailable.google
+                    ? "Owner mailbox available"
+                    : "Optional mail access not enabled"
+                }
+              />
+              <DeliveryStatus
+                label="Outlook"
+                available={emailDelivery.oauthAvailable.microsoft}
+                detail={
+                  emailDelivery.oauthAvailable.microsoft
+                    ? "Owner mailbox available"
+                    : "Optional mail access not enabled"
+                }
+              />
             </div>
 
-            {emailMethod !== "worker" && (
+            {emailMethod !== "worker" && emailMethod !== "none" && (
               <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
                 <div>
                   <p className="text-sm font-medium">Worker Email fallback</p>
@@ -306,7 +333,7 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
                   disabled={Boolean(emailBusy)}
                 >
                   {emailBusy === "save" && <Loader2 className="animate-spin" />}
-                  Save email delivery
+                  Save fallback
                 </Button>
                 <Button
                   variant="outline"
@@ -327,26 +354,14 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          {overview.providers.map((provider) => (
-            <ProviderCard
-              key={provider.provider}
-              provider={provider}
-              overview={overview}
-              user={user}
-              reload={load}
-            />
-          ))}
-        </div>
-
         <Alert>
           <ShieldCheck />
-          <AlertTitle>Credential handling</AlertTitle>
+          <AlertTitle>Personal connections</AlertTitle>
           <AlertDescription>
-            Client secrets, access tokens, refresh tokens, and PKCE verifiers
-            are stored as authenticated JWE ciphertext. Client IDs, tenant IDs,
-            callback URLs, and connection status are non-secret configuration.
-            Saved secrets are write-only and are never sent back to this page.
+            Every owner, admin, or member connects their own account from My
+            connected accounts in the header. Viewers cannot connect providers.
+            Slotloom requests calendar access first and never reads inbox
+            messages.
           </AlertDescription>
         </Alert>
       </div>
@@ -376,364 +391,126 @@ function DeliveryStatus({
   );
 }
 
-function ProviderCard({
+function OwnerConnection({
   provider,
-  overview,
-  user,
-  reload,
+  ownerEmail,
+  encryptionReady,
 }: {
   provider: IntegrationProvider;
-  overview: IntegrationOverview;
-  user: WorkspaceUser;
-  reload: () => Promise<void>;
+  ownerEmail: string;
+  encryptionReady: boolean;
 }) {
-  const [clientId, setClientId] = useState(provider.clientId);
-  const [clientSecret, setClientSecret] = useState("");
-  const [tenantId, setTenantId] = useState(provider.tenantId || "common");
-  const [busy, setBusy] = useState<
-    "save" | "connect" | "disconnect" | "remove" | null
-  >(null);
-  const currentConnection = provider.connections.find(
-    (connection) => connection.isCurrentUser,
-  );
+  const [busy, setBusy] = useState(false);
+  const connection = provider.connections.find((item) => item.isCurrentUser);
+  const isGoogle = provider.provider === "google";
+  const name = isGoogle ? "Google" : "Microsoft";
+  const mailName = isGoogle ? "Gmail" : "Outlook";
 
-  useEffect(() => {
-    setClientId(provider.clientId);
-    setTenantId(provider.tenantId || "common");
-    setClientSecret("");
-  }, [provider.clientId, provider.tenantId]);
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy("save");
+  async function connect(includeMail: boolean) {
+    setBusy(true);
     try {
-      await api.saveIntegrationConfig(provider.provider, {
-        clientId,
-        clientSecret,
-        ...(provider.provider === "microsoft" ? { tenantId } : {}),
-      });
-      await reload();
-      toast.success(`${provider.label} credentials saved`);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not save credentials.",
+      const result = await api.connectIntegration(
+        provider.provider,
+        includeMail,
       );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function connect() {
-    setBusy("connect");
-    try {
-      const result = await api.connectIntegration(provider.provider);
       location.assign(result.authorizationUrl);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not start OAuth.",
       );
-      setBusy(null);
+      setBusy(false);
     }
   }
 
   async function disconnect() {
-    setBusy("disconnect");
+    setBusy(true);
     try {
       await api.disconnectIntegration(provider.provider);
-      await reload();
-      toast.success(`${provider.label} disconnected`);
+      location.reload();
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Could not disconnect account.",
+          : "Could not disconnect the account.",
       );
-    } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
-  async function removeConfig() {
-    setBusy("remove");
-    try {
-      await api.removeIntegrationConfig(provider.provider);
-      await reload();
-      toast.success(`${provider.label} configuration removed`);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not remove configuration.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function copyCallback() {
-    await navigator.clipboard.writeText(provider.callbackUrl);
-    toast.success("Callback URL copied");
-  }
-
-  const disabled = Boolean(busy);
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-700 dark:text-violet-300">
-            <PlugZap className="size-4" />
-          </span>
-          <Badge variant={provider.configured ? "secondary" : "outline"}>
-            {provider.configured ? "Configured" : "Not configured"}
-          </Badge>
-        </div>
-        <CardTitle className="pt-3">{provider.label}</CardTitle>
-        <CardDescription>
-          {provider.provider === "google"
-            ? "Creates Google Meet events and can send transactional email through Gmail."
-            : "Creates Microsoft Teams events and can send transactional email through Outlook."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <div className="rounded-xl border p-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
-            OAuth callback URL
+          <p className="font-medium">{name}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {connection?.providerEmail || ownerEmail}
           </p>
-          <div className="flex gap-2">
-            <Input
-              value={provider.callbackUrl}
-              readOnly
-              className="font-mono text-xs"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Copy callback URL"
-              onClick={copyCallback}
-            >
-              <Clipboard />
-            </Button>
-          </div>
         </div>
-
-        {overview.canManageConfig && (
-          <form onSubmit={save} className="space-y-4 rounded-xl border p-4">
-            <div>
-              <p className="text-sm font-medium">Provider application</p>
-              <p className="text-xs text-muted-foreground">
-                These credentials are shared by the workspace. Every organizer
-                authorizes their own calendar account below.
-              </p>
-            </div>
-            {provider.provider === "microsoft" && (
-              <Field label="Directory (tenant) ID">
-                <Input
-                  value={tenantId}
-                  onChange={(event) => setTenantId(event.target.value)}
-                  autoComplete="off"
-                  required
-                  placeholder="Microsoft Entra tenant ID"
-                />
-              </Field>
-            )}
-            <Field label="Client ID">
-              <Input
-                value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
-                autoComplete="off"
-                required
-                placeholder="OAuth application client ID"
-              />
-            </Field>
-            <Field
-              label={
-                provider.provider === "microsoft"
-                  ? "Client secret value"
-                  : "Client secret"
-              }
-            >
-              <Input
-                type="password"
-                value={clientSecret}
-                onChange={(event) => setClientSecret(event.target.value)}
-                autoComplete="new-password"
-                required={!provider.hasClientSecret}
-                placeholder={
-                  provider.hasClientSecret
-                    ? "Leave blank to keep the saved secret"
-                    : "Enter the secret value"
-                }
-              />
-            </Field>
-            {provider.provider === "microsoft" && (
-              <p className="text-xs text-muted-foreground">
-                Use <code>common</code> with a multi-tenant registration to let
-                organizational and personal Microsoft accounts authorize. Paste
-                the secret value shown once by Entra, not the Secret ID. Add
-                delegated <code>User.Read</code>,{" "}
-                <code>Calendars.ReadWrite</code>, and <code>Mail.Send</code>.
-                Creating Teams links still requires a supported Teams account
-                and license.
-              </p>
-            )}
-            {provider.provider === "google" && (
-              <p className="text-xs text-muted-foreground">
-                Enable the Google Calendar and Gmail APIs. Configure an External
-                OAuth audience to allow accounts outside your Workspace. Gmail
-                sending is a sensitive scope and may require Google OAuth
-                verification for public use.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
+        <Badge variant={connection ? "secondary" : "outline"}>
+          {connection
+            ? connection.status === "error"
+              ? "Reconnect required"
+              : "Connected"
+            : "Not connected"}
+        </Badge>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Badge variant={connection ? "secondary" : "outline"}>
+          {isGoogle ? "Calendar + Meet" : "Calendar + Teams"}
+        </Badge>
+        <Badge variant={connection?.mailCapable ? "secondary" : "outline"}>
+          {mailName} {connection?.mailCapable ? "enabled" : "optional"}
+        </Badge>
+      </div>
+      {!provider.configured && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Configure the {name} application in Workspace settings first.
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {!connection ? (
+          <Button
+            size="sm"
+            onClick={() => connect(false)}
+            disabled={busy || !provider.configured || !encryptionReady}
+          >
+            {busy ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+            Connect {name} Calendar
+          </Button>
+        ) : (
+          <>
+            {connection.status === "error" ? (
               <Button
-                type="submit"
-                disabled={disabled || !overview.encryptionReady}
+                size="sm"
+                onClick={() => connect(connection.mailCapable)}
+                disabled={busy}
               >
-                {busy === "save" && <Loader2 className="animate-spin" />}
-                Save credentials
+                {busy && <Loader2 className="animate-spin" />}
+                Reconnect
               </Button>
-              {provider.configured && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button type="button" variant="outline" disabled={disabled}>
-                      <Trash2 />
-                      Remove
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Remove {provider.label}?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This deletes the encrypted application secret and every
-                        local {provider.label} connection. Existing events
-                        remain in provider calendars. Select another email
-                        delivery method first if this provider currently sends
-                        workspace email.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Keep integration</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={removeConfig}
-                      >
-                        Remove configuration
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
-          </form>
-        )}
-
-        <div className="rounded-xl border p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">Your organizer account</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {currentConnection
-                  ? `${currentConnection.providerEmail} · ${currentConnection.status}`
-                  : user.email}
-              </p>
-              {currentConnection && (
-                <Badge
-                  className="mt-2"
-                  variant={
-                    currentConnection.mailCapable ? "secondary" : "outline"
-                  }
-                >
-                  {currentConnection.mailCapable
-                    ? "Calendar and email"
-                    : "Calendar only, reauthorize for email"}
-                </Badge>
-              )}
-            </div>
-            {currentConnection ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  onClick={connect}
-                  disabled={disabled || !provider.configured}
-                >
-                  {busy === "connect" && <Loader2 className="animate-spin" />}
-                  {currentConnection.status === "error"
-                    ? "Reconnect"
-                    : "Reauthorize"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={disconnect}
-                  disabled={disabled}
-                >
-                  {busy === "disconnect" && (
-                    <Loader2 className="animate-spin" />
-                  )}
-                  Disconnect
-                </Button>
-              </div>
+            ) : !connection.mailCapable ? (
+              <Button size="sm" onClick={() => connect(true)} disabled={busy}>
+                {busy && <Loader2 className="animate-spin" />}
+                Enable {mailName} sending
+              </Button>
             ) : (
-              <Button
-                type="button"
-                onClick={connect}
-                disabled={
-                  disabled ||
-                  !provider.configured ||
-                  !overview.encryptionReady ||
-                  user.role === "viewer"
-                }
-              >
-                {busy === "connect" ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <CheckCircle2 />
-                )}
-                Connect {provider.label}
+              <Button size="sm" onClick={() => connect(true)} disabled={busy}>
+                {busy && <Loader2 className="animate-spin" />}
+                Reauthorize
               </Button>
             )}
-          </div>
-        </div>
-
-        {overview.canManageConfig && provider.connections.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs font-medium text-muted-foreground">
-              Workspace organizer connections
-            </p>
-            <div className="space-y-2">
-              {provider.connections.map((connection) => (
-                <div
-                  key={connection.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {connection.workspaceUserEmail}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {connection.providerEmail} · Updated{" "}
-                      {fmt(connection.updatedAt)}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={
-                      connection.status === "active"
-                        ? "secondary"
-                        : "destructive"
-                    }
-                  >
-                    {connection.status}
-                    {connection.mailCapable ? " · email" : " · calendar only"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={disconnect}
+              disabled={busy}
+            >
+              <Unplug />
+              Disconnect
+            </Button>
+          </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

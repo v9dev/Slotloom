@@ -20,6 +20,7 @@ export type WorkspaceUser = {
   lastSeenAt: string | null;
   createdAt: string;
   updatedAt: string;
+  emailProviderPreference: "auto" | "google" | "microsoft";
 };
 export type UserActivity = {
   id: string;
@@ -61,6 +62,8 @@ export type BookingLink = {
   validUntil: string | null;
   status: LinkStatus;
   allowSlotHolds: boolean;
+  allowCustomMeetingTitle: boolean;
+  allowAdditionalAttendees: boolean;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -83,6 +86,7 @@ export type Booking = {
   adminNote: string | null;
   meetingUrl: string | null;
   meetingNotes: string | null;
+  meetingTitle: string;
   meetingSentAt: string | null;
   meetingProvider: "google" | "microsoft" | null;
   meetingProviderPreference: "workspace" | "manual" | "google" | "microsoft";
@@ -120,6 +124,7 @@ export type DashboardData = {
 };
 export type BookingDetail = {
   booking: Booking;
+  attendees: MeetingAttendee[];
   activities: Array<{
     id: string;
     summary: string;
@@ -130,6 +135,7 @@ export type BookingDetail = {
   emails: Array<{
     id: string;
     template: string;
+    recipient: string;
     status: string;
     delivery_method: string | null;
     sender_email: string | null;
@@ -138,6 +144,50 @@ export type BookingDetail = {
     error: string | null;
   }>;
   feedback: MeetingFeedback | null;
+};
+
+export type MeetingAttendee = {
+  name: string;
+  email: string;
+  primary: boolean;
+  source: "primary" | "visitor" | "organizer";
+};
+export type MeetingProviderOption = {
+  provider: CalendarProvider;
+  label: string;
+  available: boolean;
+  account: string | null;
+  usedOwnerFallback: boolean;
+};
+export type MeetingOrganizerOption = {
+  email: string;
+  name: string;
+  role: Exclude<UserRole, "viewer">;
+  providers: MeetingProviderOption[];
+};
+export type MeetingOptions = {
+  booking: Booking;
+  attendees: MeetingAttendee[];
+  currentUserEmail: string;
+  currentUserRole: UserRole;
+  suggestedOrganizer: string;
+  suggestedProvider: "manual" | CalendarProvider;
+  organizers: MeetingOrganizerOption[];
+};
+export type CreateMeetingInput = {
+  organizerEmail: string;
+  provider: "manual" | CalendarProvider;
+  title: string;
+  finalStartsAt: string;
+  meetingUrl: string;
+  meetingNotes: string;
+  attendees: Array<Pick<MeetingAttendee, "name" | "email">>;
+};
+export type CreateMeetingResult = {
+  booking: Booking;
+  deliveryMethod: "calendar" | EmailDeliveryMethod;
+  usedOwnerFallback: boolean;
+  additionalInviteFailures: Array<{ email: string; error: string }>;
 };
 export type MeetingFeedback = {
   rating: number;
@@ -200,15 +250,33 @@ export type IntegrationOverview = {
   defaultProvider: "manual" | CalendarProvider;
   canManageConfig: boolean;
   currentUserEmail: string;
+  ownerFallbackEnabled: boolean;
   providers: IntegrationProvider[];
 };
 
 export type EmailDeliveryMethod = "worker" | CalendarProvider;
+export type EmailFallbackMethod = "none" | EmailDeliveryMethod;
 export type EmailDeliveryOverview = {
-  method: EmailDeliveryMethod;
+  method: EmailFallbackMethod;
   workerFallback: boolean;
   workerAvailable: boolean;
   workerFrom: string;
   oauthAvailable: Record<CalendarProvider, boolean>;
   canManage: boolean;
+};
+
+export type PersonalIntegrationOverview = {
+  encryptionReady: boolean;
+  preference: "auto" | CalendarProvider;
+  providers: Array<{
+    provider: CalendarProvider;
+    label: string;
+    configured: boolean;
+    connection: {
+      providerEmail: string;
+      status: "active" | "error";
+      mailCapable: boolean;
+      updatedAt: string;
+    } | null;
+  }>;
 };

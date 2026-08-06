@@ -30,11 +30,12 @@ import {
 import {
   calendarOAuthCallbackUrl,
   calendarOAuthRedirect,
-  calendarOAuthStartResponse,
   readCalendarOAuthState,
+  type OAuthReturnTarget,
 } from "./calendar-oauth-urls";
 import { IntegrationError, providerCalendarFailure } from "./calendar-errors";
 import { grantsMailSend, oauthScopes } from "./oauth-scopes";
+import { listMeetingAttendees } from "./meeting-attendees";
 
 export { extractGoogleMeetingLink, extractMicrosoftMeetingLink };
 export type CalendarProvider = "google" | "microsoft";
@@ -53,6 +54,8 @@ type OAuthStateRow = {
   provider: CalendarProvider;
   workspace_user_email: string;
   code_verifier_jwe: string;
+  requested_scopes: string;
+  return_target: OAuthReturnTarget;
   expires_at: string;
 };
 type ProviderProfile = { id: string; email: string };
@@ -79,7 +82,7 @@ async function responseObject(response: Response) {
   return isRecord(value) ? value : {};
 }
 
-async function providerConfig(env: Env, provider: CalendarProvider) {
+export async function providerConfig(env: Env, provider: CalendarProvider) {
   return env.DB.prepare(
     "SELECT * FROM calendar_provider_configs WHERE provider=?",
   )
@@ -105,7 +108,7 @@ async function organizerConnection(
     .first<ConnectionRow>();
 }
 
-async function saveProviderConfig(
+export async function saveProviderConfig(
   request: Request,
   env: Env,
   provider: CalendarProvider,
@@ -161,13 +164,13 @@ async function saveProviderConfig(
   );
 }
 
-async function deleteProviderConfig(
+export async function deleteProviderConfig(
   env: Env,
   provider: CalendarProvider,
   actor: string,
 ) {
   const emailMethod = await env.DB.prepare(
-    "SELECT setting_value FROM workspace_settings WHERE setting_key='email_delivery_method'",
+    "SELECT setting_value FROM workspace_settings WHERE setting_key IN ('email_fallback_method','email_delivery_method') ORDER BY CASE setting_key WHEN 'email_fallback_method' THEN 0 ELSE 1 END LIMIT 1",
   ).first<{ setting_value: string }>();
   if (emailMethod?.setting_value === provider)
     throw new IntegrationError(
@@ -196,7 +199,7 @@ async function deleteProviderConfig(
   );
 }
 
-async function integrationOverview(env: Env, user: WorkspaceUser) {
+export async function integrationOverview(env: Env, user: WorkspaceUser) {
   const [configs, connections, setting] = await Promise.all([
     env.DB.prepare(
       "SELECT * FROM calendar_provider_configs ORDER BY provider",
@@ -224,8 +227,8 @@ async function integrationOverview(env: Env, user: WorkspaceUser) {
         provider,
         label: providerLabels[provider],
         configured: Boolean(config),
-        clientId: config?.client_id || "",
-        tenantId: config?.tenant_id || "",
+        clientId: user.role === "owner" ? config?.client_id || "" : "",
+        tenantId: user.role === "owner" ? config?.tenant_id || "" : "",
         hasClientSecret: Boolean(config?.client_secret_jwe),
         callbackUrl: calendarOAuthCallbackUrl(env, provider),
         connections: connections.results
@@ -247,10 +250,14 @@ async function integrationOverview(env: Env, user: WorkspaceUser) {
   };
 }
 
-async function beginOAuth(
+export async function beginOAuth(
   env: Env,
   provider: CalendarProvider,
   user: WorkspaceUser,
+  options: {
+    includeMail?: boolean;
+    returnTarget?: OAuthReturnTarget;
+  } = {},
 ) {
   if (user.role === "viewer")
     throw new IntegrationError(
@@ -276,6 +283,8 @@ async function beginOAuth(
     verifier,
     env.OAUTH_ENCRYPTION_KEY,
   );
+  const requestedScopes = oauthScopes(provider, options.includeMail);
+  const returnTarget = options.returnTarget || "connections";
   const now = new Date();
   await env.DB.batch([
     env.DB.prepare(
@@ -285,12 +294,14 @@ async function beginOAuth(
       "DELETE FROM calendar_oauth_states WHERE provider=? AND workspace_user_email=? COLLATE NOCASE",
     ).bind(provider, user.email),
     env.DB.prepare(
-      "INSERT INTO calendar_oauth_states (state_hash,provider,workspace_user_email,code_verifier_jwe,expires_at,created_at) VALUES (?,?,?,?,?,?)",
+      "INSERT INTO calendar_oauth_states (state_hash,provider,workspace_user_email,code_verifier_jwe,requested_scopes,return_target,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?)",
     ).bind(
       stateHash,
       provider,
       user.email,
       encryptedVerifier,
+      requestedScopes.join(" "),
+      returnTarget,
       new Date(now.getTime() + 10 * 60_000).toISOString(),
       now.toISOString(),
     ),
@@ -306,7 +317,7 @@ async function beginOAuth(
     client_id: config.client_id,
     redirect_uri: calendarOAuthCallbackUrl(env, provider),
     response_type: "code",
-    scope: oauthScopes[provider].join(" "),
+    scope: requestedScopes.join(" "),
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -331,6 +342,7 @@ async function exchangeAuthorizationCode(
   config: ProviderConfigRow,
   code: string,
   verifier: string,
+  requestedScopes: string,
 ) {
   const secret = await decryptSecret(
     config.client_secret_jwe,
@@ -349,8 +361,7 @@ async function exchangeAuthorizationCode(
     redirect_uri: calendarOAuthCallbackUrl(env, provider),
     grant_type: "authorization_code",
   });
-  if (provider === "microsoft")
-    form.set("scope", oauthScopes.microsoft.join(" "));
+  if (provider === "microsoft") form.set("scope", requestedScopes);
   const response = await fetch(tokenUrl, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -422,12 +433,30 @@ export async function oauthCallbackRoute(
     .bind(stateHash)
     .run();
   if (new Date(stored.expires_at).getTime() <= Date.now())
-    return calendarOAuthRedirect(env, provider, "error", "expired_state");
+    return calendarOAuthRedirect(
+      env,
+      provider,
+      "error",
+      "expired_state",
+      stored.return_target,
+    );
   if (url.searchParams.has("error"))
-    return calendarOAuthRedirect(env, provider, "error", "access_denied");
+    return calendarOAuthRedirect(
+      env,
+      provider,
+      "error",
+      "access_denied",
+      stored.return_target,
+    );
   const code = safeText(url.searchParams.get("code"), 4000);
   if (!code)
-    return calendarOAuthRedirect(env, provider, "error", "missing_code");
+    return calendarOAuthRedirect(
+      env,
+      provider,
+      "error",
+      "missing_code",
+      stored.return_target,
+    );
 
   try {
     const config = await providerConfig(env, provider);
@@ -443,6 +472,7 @@ export async function oauthCallbackRoute(
       config,
       code,
       verifier,
+      stored.requested_scopes || oauthScopes(provider).join(" "),
     );
     const accessToken = stringValue(tokens.access_token);
     const profile = await providerProfile(provider, accessToken);
@@ -462,7 +492,7 @@ export async function oauthCallbackRoute(
     const refreshToken = returnedRefresh || preservedRefresh;
     if (!refreshToken)
       throw new IntegrationError(
-        `${providerLabels[provider]} did not return offline access. Start the connection again and approve calendar and email access.`,
+        `${providerLabels[provider]} did not return offline access. Start the connection again and approve calendar access.`,
       );
     const now = new Date();
     const accessTokenJwe = await encryptSecret(
@@ -499,7 +529,9 @@ export async function oauthCallbackRoute(
         new Date(
           now.getTime() + numberValue(tokens.expires_in, 3600) * 1000,
         ).toISOString(),
-        stringValue(tokens.scope) || oauthScopes[provider].join(" "),
+        stringValue(tokens.scope) ||
+          stored.requested_scopes ||
+          oauthScopes(provider).join(" "),
         existing?.created_at || now.toISOString(),
         now.toISOString(),
       )
@@ -510,17 +542,29 @@ export async function oauthCallbackRoute(
       "calendar.connected",
       `Connected ${profile.email} to ${providerLabels[provider]}`,
     );
-    return calendarOAuthRedirect(env, provider, "connected");
+    return calendarOAuthRedirect(
+      env,
+      provider,
+      "connected",
+      undefined,
+      stored.return_target,
+    );
   } catch (error) {
     console.warn("OAuth callback failed", {
       provider,
       reason: error instanceof Error ? error.name : "unknown",
     });
-    return calendarOAuthRedirect(env, provider, "error", "connection_failed");
+    return calendarOAuthRedirect(
+      env,
+      provider,
+      "error",
+      "connection_failed",
+      stored.return_target,
+    );
   }
 }
 
-async function disconnectProvider(
+export async function disconnectProvider(
   env: Env,
   provider: CalendarProvider,
   user: WorkspaceUser,
@@ -551,92 +595,6 @@ async function disconnectProvider(
     "calendar.disconnected",
     `Disconnected ${providerLabels[provider]}`,
   );
-}
-
-export async function integrationAdminRoute(
-  request: Request,
-  env: Env,
-  path: string,
-  user: WorkspaceUser,
-): Promise<Response | null> {
-  if (!path.startsWith("/api/admin/integrations")) return null;
-  try {
-    if (path === "/api/admin/integrations" && request.method === "GET")
-      return json(await integrationOverview(env, user));
-    if (
-      path === "/api/admin/integrations/default" &&
-      request.method === "PATCH"
-    ) {
-      if (user.role !== "owner")
-        throw new IntegrationError(
-          "Only workspace owners can choose the meeting provider.",
-          403,
-        );
-      const body: unknown = await request.json().catch(() => null);
-      const value = isRecord(body) ? safeText(body.provider, 20) : "";
-      if (!["manual", "google", "microsoft"].includes(value))
-        throw new IntegrationError("Choose a valid meeting provider.");
-      if (isProvider(value) && !(await providerConfig(env, value)))
-        throw new IntegrationError(
-          `Configure ${providerLabels[value]} before making it the default.`,
-        );
-      await env.DB.prepare(
-        `INSERT INTO workspace_settings (setting_key,setting_value,updated_by,updated_at)
-         VALUES ('calendar_provider',?,?,?)
-         ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_by=excluded.updated_by,updated_at=excluded.updated_at`,
-      )
-        .bind(value, user.email, new Date().toISOString())
-        .run();
-      return json({ success: true });
-    }
-    const match = path.match(
-      /^\/api\/admin\/integrations\/(google|microsoft)\/(config|connect|disconnect)$/,
-    );
-    if (!match) return json({ error: "Not found." }, 404);
-    const provider = match[1] as CalendarProvider;
-    const action = match[2];
-    if (action === "config") {
-      if (user.role !== "owner")
-        throw new IntegrationError(
-          "Only workspace owners can manage provider credentials.",
-          403,
-        );
-      if (request.method === "PUT") {
-        await saveProviderConfig(request, env, provider, user.email);
-        return json({ success: true });
-      }
-      if (request.method === "DELETE") {
-        await deleteProviderConfig(env, provider, user.email);
-        return json({ success: true });
-      }
-    }
-    if (action === "connect" && request.method === "POST") {
-      const started = await beginOAuth(env, provider, user);
-      return calendarOAuthStartResponse(
-        env,
-        provider,
-        started.state,
-        started.authorizationUrl,
-      );
-    }
-    if (action === "disconnect" && request.method === "POST") {
-      if (user.role === "viewer")
-        throw new IntegrationError(
-          "View-only members cannot change calendar connections.",
-          403,
-        );
-      await disconnectProvider(env, provider, user);
-      return json({ success: true });
-    }
-    return json({ error: "Method not allowed." }, 405);
-  } catch (error) {
-    if (error instanceof IntegrationError)
-      return json({ error: error.message }, error.status);
-    console.error("Calendar integration operation failed", {
-      reason: error instanceof Error ? error.name : "unknown",
-    });
-    return json({ error: "Calendar integration operation failed." }, 500);
-  }
 }
 
 async function refreshAccessToken(
@@ -676,7 +634,10 @@ async function refreshAccessToken(
     grant_type: "refresh_token",
   });
   if (connection.provider === "microsoft")
-    form.set("scope", connection.scopes || oauthScopes.microsoft.join(" "));
+    form.set(
+      "scope",
+      connection.scopes || oauthScopes(connection.provider).join(" "),
+    );
   const response = await fetch(tokenUrl, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -773,6 +734,7 @@ async function createExternalMeeting(
   connection: ConnectionRow,
   booking: BookingRow,
 ): Promise<ExternalMeeting> {
+  const attendees = await listMeetingAttendees(env, booking);
   if (connection.provider === "google") {
     const eventId = `slotloom${(await sha256(booking.id)).slice(0, 32)}`;
     const response = await providerRequest(
@@ -784,7 +746,7 @@ async function createExternalMeeting(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           id: eventId,
-          ...googleEventBody(booking, true),
+          ...googleEventBody(booking, true, attendees),
         }),
       },
     );
@@ -808,7 +770,7 @@ async function createExternalMeeting(
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(microsoftEventBody(booking, true)),
+      body: JSON.stringify(microsoftEventBody(booking, true, attendees)),
     },
   );
   const body = await responseObject(response);
@@ -921,7 +883,7 @@ export async function ensureProviderMeeting(env: Env, booking: BookingRow) {
   const updated = (await getBooking(env, booking.id))!;
   if (!updated.meeting_url)
     throw new IntegrationError(
-      `${providerLabels[provider]} created the event but the joining link is still pending. Try Confirm and invite again in a moment.`,
+      `${providerLabels[provider]} created the event but the joining link is still pending. Try creating the meeting again in a moment.`,
       409,
     );
   return updated;

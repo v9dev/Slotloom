@@ -20,6 +20,15 @@ describe("resolveAppRoute", () => {
     expect(resolveAppRoute(path)).toEqual({ kind: "admin" });
   });
 
+  it.each([
+    ["/privacy", "privacy"],
+    ["/privacy/", "privacy"],
+    ["/terms", "terms"],
+    ["/terms/", "terms"],
+  ] as const)("resolves %s as a public legal page", (path, document) => {
+    expect(resolveAppRoute(path)).toEqual({ kind: "legal", document });
+  });
+
   it("decodes booking and management path segments", () => {
     expect(resolveAppRoute("/book/design%20review/")).toEqual({
       kind: "booking",

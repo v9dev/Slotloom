@@ -141,7 +141,7 @@ function scan(file, text) {
 }
 
 function currentFiles() {
-  return git(["ls-files", "-z"])
+  return git(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])
     .split("\0")
     .filter(Boolean)
     .filter((file) => !ignored.has(file));

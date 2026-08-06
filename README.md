@@ -37,7 +37,8 @@ D1, R2, and Durable Objects power the backend.
 - Runtime white-label branding, including logos, colors, favicon, and email identity
 - Email templates, calendar invitations, follow-ups, feedback, and audit history
 - Google Meet, Teams, Gmail, and Outlook automation with per-organizer OAuth
-- Selectable OAuth or Cloudflare Worker email delivery with optional fallback
+- Personal mailbox delivery with an owner-controlled workspace fallback
+- Reviewed meeting titles and up to nine additional attendees per response
 - Real-time dashboard notifications and optional Turnstile bot protection
 
 ## Stack
@@ -81,10 +82,16 @@ WebSocket traffic to the local Worker on port `8787`.
 - Local deployment bindings: copy `wrangler.example.jsonc` to the ignored
   `wrangler.jsonc`, then add values from your own Cloudflare account
 
-Branding, booking schedules, and Google or Microsoft provider credentials are
-managed in the application. Provider secrets and OAuth tokens are encrypted
-before D1 storage and are never returned to the browser. See the
+Branding and Google or Microsoft provider applications are managed by the owner
+in Workspace settings. Each organizer connects their own calendar from the
+header account control and can enable Gmail or Outlook sending separately.
+Provider secrets and OAuth tokens are encrypted before D1 storage and are never
+returned to the browser. See the
 [deployment handover](HANDOFF.md) for setup and production configuration.
+
+Public OAuth disclosures are available at `/privacy` and `/terms`. Deploy these
+routes on the final application domain before adding their HTTPS URLs to Google
+Cloud or Microsoft Entra consent-screen settings.
 
 ## Deployment
 

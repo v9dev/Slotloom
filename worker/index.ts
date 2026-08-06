@@ -36,11 +36,11 @@ import {
   submitFeedback,
 } from "./public-routes";
 import { serveBrandAsset, uploadBrandAsset } from "./brand-assets";
-import {
-  integrationAdminRoute,
-  oauthCallbackRoute,
-} from "./calendar-integrations";
+import { oauthCallbackRoute } from "./calendar-integrations";
+import { integrationAdminRoute } from "./integration-admin";
 import { bookingAdminRoute } from "./booking-admin";
+import { meetingAdminRoute } from "./meeting-admin";
+import { personalIntegrationRoute } from "./personal-integrations";
 import { deliverEmail, emailDeliveryAdminRoute } from "./email-delivery";
 export async function adminRoutes(
   request: Request,
@@ -57,6 +57,13 @@ export async function adminRoutes(
       403,
     );
   const actor = user.email;
+  const personalIntegrationResponse = await personalIntegrationRoute(
+    request,
+    env,
+    path,
+    user,
+  );
+  if (personalIntegrationResponse) return personalIntegrationResponse;
   const emailDeliveryResponse = await emailDeliveryAdminRoute(
     request,
     env,
@@ -502,8 +509,8 @@ export async function adminRoutes(
     const now = new Date().toISOString();
     try {
       await env.DB.prepare(
-        `INSERT INTO booking_links (id,slug,internal_name,title,description,duration_minutes,slot_interval_minutes,buffer_minutes,time_zone,days_ahead,minimum_notice_hours,valid_from,valid_until,status,allow_slot_holds,created_by,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO booking_links (id,slug,internal_name,title,description,duration_minutes,slot_interval_minutes,buffer_minutes,time_zone,days_ahead,minimum_notice_hours,valid_from,valid_until,status,allow_slot_holds,allow_custom_meeting_title,allow_additional_attendees,created_by,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
         .bind(
           id,
@@ -521,6 +528,8 @@ export async function adminRoutes(
           input.validUntil,
           input.status,
           input.allowSlotHolds ? 1 : 0,
+          input.allowCustomMeetingTitle ? 1 : 0,
+          input.allowAdditionalAttendees ? 1 : 0,
           actor,
           now,
           now,
@@ -581,6 +590,9 @@ export async function adminRoutes(
         env.DB.prepare(
           "DELETE FROM activity_events WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?) OR booking_link_id=?",
         ).bind(id, id),
+        env.DB.prepare(
+          "DELETE FROM booking_attendees WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?)",
+        ).bind(id),
         env.DB.prepare("DELETE FROM bookings WHERE booking_link_id=?").bind(id),
         env.DB.prepare(
           "DELETE FROM link_page_views WHERE booking_link_id=?",
@@ -607,7 +619,7 @@ export async function adminRoutes(
         );
       try {
         await env.DB.prepare(
-          `UPDATE booking_links SET slug=?,internal_name=?,title=?,description=?,duration_minutes=?,slot_interval_minutes=?,buffer_minutes=?,time_zone=?,days_ahead=?,minimum_notice_hours=?,valid_from=?,valid_until=?,status=?,allow_slot_holds=?,updated_at=? WHERE id=?`,
+          `UPDATE booking_links SET slug=?,internal_name=?,title=?,description=?,duration_minutes=?,slot_interval_minutes=?,buffer_minutes=?,time_zone=?,days_ahead=?,minimum_notice_hours=?,valid_from=?,valid_until=?,status=?,allow_slot_holds=?,allow_custom_meeting_title=?,allow_additional_attendees=?,updated_at=? WHERE id=?`,
         )
           .bind(
             input.slug,
@@ -624,6 +636,8 @@ export async function adminRoutes(
             input.validUntil,
             input.status,
             input.allowSlotHolds ? 1 : 0,
+            input.allowCustomMeetingTitle ? 1 : 0,
+            input.allowAdditionalAttendees ? 1 : 0,
             new Date().toISOString(),
             id,
           )
@@ -682,6 +696,8 @@ export async function adminRoutes(
     });
   }
   if (path === "/api/admin/bookings/bulk" && request.method === "PATCH") {
+    if (user.role === "viewer")
+      return json({ error: "View-only members cannot change requests." }, 403);
     const body = await request
       .json<Record<string, unknown>>()
       .catch(() => ({}) as Record<string, unknown>);
@@ -692,28 +708,38 @@ export async function adminRoutes(
           .slice(0, 100)
       : [];
     const status = safeText(body.status, 30) as WorkflowStatus;
-    const assignedTo = safeText(body.assignedTo, 254);
+    const assignedTo =
+      user.role === "member" ? user.email : safeText(body.assignedTo, 254);
     if (!ids.length || (!WORKFLOW_STATUSES.has(status) && !assignedTo))
       return json({ error: "Choose requests and a valid action." }, 400);
-    const statements = ids.map((id) =>
-      env.DB.prepare(
+    const statements = ids.map((id) => {
+      const memberScope =
+        user.role === "member"
+          ? " AND (assigned_to IS NULL OR assigned_to=? COLLATE NOCASE)"
+          : "";
+      const parameters =
         status && WORKFLOW_STATUSES.has(status)
-          ? "UPDATE bookings SET workflow_status=?,assigned_to=COALESCE(NULLIF(?,''),assigned_to),updated_at=? WHERE id=?"
-          : "UPDATE bookings SET assigned_to=?,updated_at=? WHERE id=?",
-      ).bind(
-        ...(status && WORKFLOW_STATUSES.has(status)
           ? [status, assignedTo, new Date().toISOString(), id]
-          : [assignedTo, new Date().toISOString(), id]),
-      ),
+          : [assignedTo, new Date().toISOString(), id];
+      if (user.role === "member") parameters.push(user.email);
+      return env.DB.prepare(
+        status && WORKFLOW_STATUSES.has(status)
+          ? `UPDATE bookings SET workflow_status=?,assigned_to=COALESCE(NULLIF(?,''),assigned_to),updated_at=? WHERE id=?${memberScope}`
+          : `UPDATE bookings SET assigned_to=?,updated_at=? WHERE id=?${memberScope}`,
+      ).bind(...parameters);
+    });
+    const updates = await env.DB.batch(statements);
+    const updated = updates.reduce(
+      (total, result) => total + Number(result.meta.changes || 0),
+      0,
     );
-    await env.DB.batch(statements);
     await recordUserActivity(
       env,
       actor,
       "bookings.bulk_updated",
-      `Updated ${ids.length} meeting requests`,
+      `Updated ${updated} meeting requests`,
     );
-    return json({ success: true, updated: ids.length });
+    return json({ success: true, updated });
   }
   if (path === "/api/admin/bookings/export" && request.method === "GET") {
     const status = safeText(url.searchParams.get("status"), 30);
@@ -777,12 +803,21 @@ export async function adminRoutes(
     const id = decodeURIComponent(personalDataMatch[1]);
     const booking = await getBooking(env, id);
     if (!booking) return json({ error: "Meeting request not found." }, 404);
+    if (
+      user.role === "member" &&
+      booking.assigned_to &&
+      booking.assigned_to.toLowerCase() !== user.email.toLowerCase()
+    )
+      return json({ error: "This request is assigned to another organizer." }, 403);
     const now = new Date().toISOString();
     await env.DB.batch([
       env.DB.prepare(
+        "DELETE FROM booking_attendees WHERE booking_id=?",
+      ).bind(id),
+      env.DB.prepare(
         `UPDATE bookings SET name='Deleted visitor',email=?,phone=NULL,company=NULL,message=NULL,
          device_type=NULL,user_agent=NULL,browser_language=NULL,referrer=NULL,country=NULL,region=NULL,city=NULL,
-         admin_note=NULL,meeting_notes=NULL,updated_at=? WHERE id=?`,
+         admin_note=NULL,meeting_notes=NULL,meeting_title=NULL,updated_at=? WHERE id=?`,
       ).bind(`deleted+${id}@invalid.local`, now, id),
       env.DB.prepare(
         "UPDATE email_events SET recipient='redacted@example.invalid',error=NULL WHERE booking_id=?",
@@ -790,6 +825,15 @@ export async function adminRoutes(
       env.DB.prepare(
         "DELETE FROM booking_manage_tokens WHERE booking_id=?",
       ).bind(id),
+      env.DB.prepare(
+        "UPDATE meeting_feedback SET message=NULL,updated_at=? WHERE booking_id=?",
+      ).bind(now, id),
+      env.DB.prepare(
+        "UPDATE activity_events SET summary='Visitor activity retained after personal data erasure',metadata=NULL WHERE booking_id=?",
+      ).bind(id),
+      env.DB.prepare("DELETE FROM notifications WHERE action_url=?").bind(
+        `/admin/requests?open=${id}`,
+      ),
     ]);
     await recordActivity(env, {
       bookingId: id,
@@ -854,7 +898,9 @@ export async function adminRoutes(
       },
     });
   }
-  const bookingResponse = await bookingAdminRoute(request, env, path, actor);
+  const meetingResponse = await meetingAdminRoute(request, env, path, user);
+  if (meetingResponse) return meetingResponse;
+  const bookingResponse = await bookingAdminRoute(request, env, path, user);
   if (bookingResponse) return bookingResponse;
   return json({ error: "Not found." }, 404);
 }

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandLogo } from "@/components/BrandLogo";
+import { PublicFooter } from "@/components/PublicFooter";
 import { setPageTitle } from "@/brand";
 import {
   AlertDialog,
@@ -56,15 +57,17 @@ export default function ManageBooking({ token }: { token: string }) {
   }, [booking?.linkTitle]);
   const groups = useMemo(
     () =>
-      slots.reduce<Record<string, Slot[]>>((all, slot) => {
-        const day = new Intl.DateTimeFormat("en", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        }).format(new Date(slot.startsAt));
-        (all[day] ||= []).push(slot);
-        return all;
-      }, {}),
+      slots
+        .filter((slot) => !slot.booked)
+        .reduce<Record<string, Slot[]>>((all, slot) => {
+          const day = new Intl.DateTimeFormat("en", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          }).format(new Date(slot.startsAt));
+          (all[day] ||= []).push(slot);
+          return all;
+        }, {}),
     [slots],
   );
   async function action(kind: "cancel" | "reschedule") {
@@ -155,37 +158,36 @@ export default function ManageBooking({ token }: { token: string }) {
               Choose another available time
             </h2>
             <div className="mt-4 space-y-5">
-              {Object.entries(groups).map(([day, items]) => (
-                <div key={day}>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    {day}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {items.map((slot) => (
-                      <Button
-                        key={slot.startsAt}
-                        disabled={slot.booked}
-                        variant={
-                          selected === slot.startsAt ? "default" : "outline"
-                        }
-                        className={
-                          slot.booked
-                            ? "border-red-500/20 bg-red-500/10 text-red-700 opacity-70 dark:text-red-300"
-                            : undefined
-                        }
-                        onClick={() => setSelected(slot.startsAt)}
-                      >
-                        <Clock3 />
-                        {new Intl.DateTimeFormat("en", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        }).format(new Date(slot.startsAt))}
-                        {slot.booked && <span className="text-[10px]">Booked</span>}
-                      </Button>
-                    ))}
+              {Object.keys(groups).length ? (
+                Object.entries(groups).map(([day, items]) => (
+                  <div key={day}>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      {day}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {items.map((slot) => (
+                        <Button
+                          key={slot.startsAt}
+                          variant={
+                            selected === slot.startsAt ? "default" : "outline"
+                          }
+                          onClick={() => setSelected(slot.startsAt)}
+                        >
+                          <Clock3 />
+                          {new Intl.DateTimeFormat("en", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          }).format(new Date(slot.startsAt))}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+                  No alternative times are currently available.
                 </div>
-              ))}
+              )}
             </div>
           </div>
           {error && (
@@ -269,6 +271,7 @@ export default function ManageBooking({ token }: { token: string }) {
           </div>
         </CardContent>
       </Card>
+      <PublicFooter className="mx-auto w-full max-w-3xl px-2 py-6" />
     </main>
   );
 }

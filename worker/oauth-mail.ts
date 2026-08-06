@@ -17,18 +17,24 @@ const providerNames: Record<CalendarProvider, string> = {
   microsoft: "Microsoft Outlook",
 };
 
-async function emailConnection(
+export async function emailConnection(
   env: Env,
   provider: CalendarProvider,
   organizerEmail: string,
+  allowOwnerFallback = true,
+  ownerOnly = false,
 ) {
-  const own = await env.DB.prepare(
-    "SELECT * FROM calendar_connections WHERE provider=? AND workspace_user_email=? COLLATE NOCASE AND status='active'",
-  )
-    .bind(provider, organizerEmail)
-    .first<ConnectionRow>();
+  const own = ownerOnly
+    ? null
+    : await env.DB.prepare(
+        "SELECT * FROM calendar_connections WHERE provider=? AND workspace_user_email=? COLLATE NOCASE AND status='active'",
+      )
+        .bind(provider, organizerEmail)
+        .first<ConnectionRow>();
   if (own && grantsMailSend(provider, own.scopes))
     return { connection: own, usedOwnerFallback: false };
+  if (!allowOwnerFallback)
+    return { connection: null, usedOwnerFallback: false };
 
   const owners = await env.DB.prepare(
     `SELECT c.* FROM calendar_connections c
@@ -48,9 +54,26 @@ export async function oauthMailAvailable(
   env: Env,
   provider: CalendarProvider,
   organizerEmail: string,
+  allowOwnerFallback = true,
 ) {
   return Boolean(
-    (await emailConnection(env, provider, organizerEmail)).connection,
+    (
+      await emailConnection(
+        env,
+        provider,
+        organizerEmail,
+        allowOwnerFallback,
+      )
+    ).connection,
+  );
+}
+
+export async function workspaceOAuthMailAvailable(
+  env: Env,
+  provider: CalendarProvider,
+) {
+  return Boolean(
+    (await emailConnection(env, provider, "", true, true)).connection,
   );
 }
 
@@ -59,8 +82,16 @@ export async function sendOAuthMail(
   provider: CalendarProvider,
   organizerEmail: string,
   message: OAuthEmailMessage,
+  allowOwnerFallback = true,
+  ownerOnly = false,
 ) {
-  const selected = await emailConnection(env, provider, organizerEmail);
+  const selected = await emailConnection(
+    env,
+    provider,
+    organizerEmail,
+    allowOwnerFallback,
+    ownerOnly,
+  );
   const connection = selected.connection;
   if (!connection)
     throw new IntegrationError(
@@ -128,4 +159,12 @@ export async function sendOAuthMail(
     senderConnectionId: connection.id,
     usedOwnerFallback: selected.usedOwnerFallback,
   };
+}
+
+export function sendWorkspaceOAuthMail(
+  env: Env,
+  provider: CalendarProvider,
+  message: OAuthEmailMessage,
+) {
+  return sendOAuthMail(env, provider, "", message, true, true);
 }

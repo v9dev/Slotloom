@@ -130,6 +130,7 @@ import {
 import { browserTimeZone, TimeZoneSelect } from "@/components/TimeZoneSelect";
 
 import { Notifications } from "./admin/Notifications";
+import { PersonalConnections } from "./admin/PersonalConnections";
 import { go } from "./admin/shared";
 
 const Overview = lazy(() =>
@@ -205,7 +206,18 @@ export default function Admin() {
     return () => removeEventListener("popstate", update);
   }, []);
   const section = adminSection(path);
-  useEffect(() => setPageTitle(adminSections[section]), [section]);
+  const visibleSection =
+    user &&
+    ((section === "integrations" &&
+      user.role !== "owner" &&
+      user.role !== "admin") ||
+      ((section === "settings" || section === "team") && user.role !== "owner"))
+      ? "overview"
+      : section;
+  useEffect(
+    () => setPageTitle(adminSections[visibleSection]),
+    [visibleSection],
+  );
   if (checking)
     return (
       <div className="flex min-h-svh items-center justify-center">
@@ -249,7 +261,7 @@ export default function Admin() {
     );
   const canManageLinks = user.role === "owner" || user.role === "admin";
   const canEditRequests = user.role !== "viewer";
-  const nav = <Nav section={section} user={user} />;
+  const nav = <Nav section={visibleSection} user={user} />;
   return (
     <div className="h-svh overflow-hidden bg-muted/30 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="hidden h-svh overflow-hidden border-r bg-background lg:block">
@@ -268,25 +280,26 @@ export default function Admin() {
             </SheetContent>
           </Sheet>
           <BrandLogo className="flex-1 lg:hidden" />
+          {user.role !== "viewer" && <PersonalConnections />}
           <Notifications />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <Suspense
             fallback={<Loader2 className="mx-auto mt-20 animate-spin" />}
           >
-            {section === "overview" ? (
+            {visibleSection === "overview" ? (
               <Overview canManageLinks={canManageLinks} />
-            ) : section === "links" ? (
+            ) : visibleSection === "links" ? (
               <Links canManage={canManageLinks} />
-            ) : section === "requests" ? (
-              <Requests canEdit={canEditRequests} />
-            ) : section === "activity" ? (
+            ) : visibleSection === "requests" ? (
+              <Requests canAssign={canManageLinks} canEdit={canEditRequests} />
+            ) : visibleSection === "activity" ? (
               <ActivityLog />
-            ) : section === "emails" ? (
+            ) : visibleSection === "emails" ? (
               <EmailTemplates canManage={canManageLinks} />
-            ) : section === "integrations" ? (
+            ) : visibleSection === "integrations" ? (
               <Integrations user={user} />
-            ) : section === "settings" ? (
+            ) : visibleSection === "settings" ? (
               <WorkspaceSettings />
             ) : (
               <Team />
@@ -324,7 +337,7 @@ function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
       icon: Mail,
       path: "/admin/emails",
     },
-    ...(user.role !== "viewer"
+    ...(user.role === "owner" || user.role === "admin"
       ? [
           {
             id: "integrations",

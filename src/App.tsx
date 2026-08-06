@@ -3,6 +3,7 @@ import { resolveAppRoute } from "@/routes";
 
 const Admin = lazy(() => import("./components/Admin"));
 const Login = lazy(() => import("./components/Login"));
+const LegalPage = lazy(() => import("./components/LegalPage"));
 const ManageBooking = lazy(() => import("./components/ManageBooking"));
 const NotFound = lazy(() => import("./components/NotFound"));
 const PublicBooking = lazy(() => import("./components/PublicBooking"));
@@ -18,6 +19,8 @@ export default function App() {
   const route = resolveAppRoute(path);
   let page;
   if (route.kind === "admin") page = <Admin />;
+  else if (route.kind === "legal")
+    page = <LegalPage document={route.document} />;
   else if (route.kind === "manage")
     page = <ManageBooking token={route.token} />;
   else if (route.kind === "booking") page = <PublicBooking slug={route.slug} />;

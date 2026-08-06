@@ -1,11 +1,10 @@
 export type OAuthProvider = "google" | "microsoft";
 
-export const oauthScopes: Record<OAuthProvider, string[]> = {
+const calendarScopes: Record<OAuthProvider, string[]> = {
   google: [
     "openid",
     "email",
     "https://www.googleapis.com/auth/calendar.events.owned",
-    "https://www.googleapis.com/auth/gmail.send",
   ],
   microsoft: [
     "openid",
@@ -14,14 +13,19 @@ export const oauthScopes: Record<OAuthProvider, string[]> = {
     "offline_access",
     "User.Read",
     "Calendars.ReadWrite",
-    "Mail.Send",
   ],
 };
 
 const mailScopes: Record<OAuthProvider, string> = {
   google: "https://www.googleapis.com/auth/gmail.send",
-  microsoft: "mail.send",
+  microsoft: "Mail.Send",
 };
+
+export function oauthScopes(provider: OAuthProvider, includeMail = false) {
+  return includeMail
+    ? [...calendarScopes[provider], mailScopes[provider]]
+    : [...calendarScopes[provider]];
+}
 
 export function grantsMailSend(provider: OAuthProvider, granted: string) {
   const values = new Set(

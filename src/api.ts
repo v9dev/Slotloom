@@ -15,8 +15,14 @@ import type {
   ActivityRecord,
   CalendarProvider,
   EmailDeliveryMethod,
+  EmailFallbackMethod,
   EmailDeliveryOverview,
   IntegrationOverview,
+  PersonalIntegrationOverview,
+  MeetingAttendee,
+  MeetingOptions,
+  CreateMeetingInput,
+  CreateMeetingResult,
 } from "./types";
 
 type ApiError = { error?: string };
@@ -68,7 +74,19 @@ export const api = {
       slots: Slot[];
       turnstileSiteKey: string | null;
     }>(`/api/public/links/${encodeURIComponent(slug)}`),
-  createBooking: (slug: string, payload: Record<string, string>) =>
+  createBooking: (
+    slug: string,
+    payload: {
+      name: string;
+      email: string;
+      phone: string;
+      startsAt: string;
+      timeZone: string;
+      turnstileToken: string;
+      meetingTitle?: string;
+      attendees?: Array<Pick<MeetingAttendee, "name" | "email">>;
+    },
+  ) =>
     request<{ id: string }>(`/api/public/links/${encodeURIComponent(slug)}`, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -161,6 +179,13 @@ export const api = {
     }>(`/api/admin/bookings?${query}`);
   },
   booking: (id: string) => request<BookingDetail>(`/api/admin/bookings/${id}`),
+  meetingOptions: (id: string) =>
+    request<MeetingOptions>(`/api/admin/bookings/${id}/meeting`),
+  createMeeting: (id: string, payload: CreateMeetingInput) =>
+    request<CreateMeetingResult>(`/api/admin/bookings/${id}/meeting`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   updateBooking: (
     id: string,
     payload: {
@@ -260,7 +285,7 @@ export const api = {
   emailDelivery: () =>
     request<EmailDeliveryOverview>("/api/admin/email-delivery"),
   updateEmailDelivery: (payload: {
-    method: EmailDeliveryMethod;
+    method: EmailFallbackMethod;
     workerFallback: boolean;
   }) =>
     request<{ success: boolean }>("/api/admin/email-delivery", {
@@ -293,10 +318,32 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ provider }),
     }),
-  connectIntegration: (provider: CalendarProvider) =>
+  setCalendarOwnerFallback: (enabled: boolean) =>
+    request<{ success: boolean }>("/api/admin/integrations/calendar-fallback", {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
+  personalConnections: () =>
+    request<PersonalIntegrationOverview>("/api/admin/connections"),
+  setPersonalEmailProvider: (provider: "auto" | CalendarProvider) =>
+    request<{ success: boolean }>("/api/admin/connections/preference", {
+      method: "PATCH",
+      body: JSON.stringify({ provider }),
+    }),
+  connectPersonalProvider: (provider: CalendarProvider, includeMail = false) =>
+    request<{ authorizationUrl: string }>(
+      `/api/admin/connections/${provider}/connect`,
+      { method: "POST", body: JSON.stringify({ includeMail }) },
+    ),
+  disconnectPersonalProvider: (provider: CalendarProvider) =>
+    request<{ success: boolean }>(
+      `/api/admin/connections/${provider}/disconnect`,
+      { method: "POST", body: "{}" },
+    ),
+  connectIntegration: (provider: CalendarProvider, includeMail = false) =>
     request<{ authorizationUrl: string }>(
       `/api/admin/integrations/${provider}/connect`,
-      { method: "POST", body: "{}" },
+      { method: "POST", body: JSON.stringify({ includeMail }) },
     ),
   disconnectIntegration: (provider: CalendarProvider) =>
     request<{ success: boolean }>(

@@ -1,6 +1,7 @@
 import type { Env } from "./domain";
 
 type OAuthProvider = "google" | "microsoft";
+export type OAuthReturnTarget = "connections" | "integrations";
 
 const cookieName = (provider: OAuthProvider) =>
   `slotloom_oauth_${provider}_state`;
@@ -20,11 +21,14 @@ export function calendarOAuthRedirect(
   provider: OAuthProvider,
   result: "connected" | "error",
   reason?: string,
+  returnTarget: OAuthReturnTarget = "connections",
 ) {
   const url = new URL(
-    "/admin/integrations",
+    returnTarget === "integrations" ? "/admin/integrations" : "/admin",
     env.APP_URL.replace(/\/$/, "") + "/",
   );
+  if (returnTarget === "connections")
+    url.searchParams.set("connections", "open");
   url.searchParams.set("oauth", result);
   url.searchParams.set("provider", provider);
   if (reason) url.searchParams.set("reason", reason.slice(0, 80));

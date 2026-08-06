@@ -8,6 +8,7 @@ import {
   safeText,
   type BookingRow,
   type Env,
+  type WorkspaceUser,
   type WorkflowStatus,
 } from "./domain";
 import { sendAndLog } from "./email-delivery";
@@ -17,6 +18,7 @@ import {
   syncProviderMeeting,
 } from "./calendar-integrations";
 import { IntegrationError } from "./calendar-errors";
+import { listMeetingAttendees } from "./meeting-attendees";
 
 export function providerOwnsLifecycleMessage(
   template: string,
@@ -37,8 +39,7 @@ async function prepareMeetingForEmail(
   template: string,
 ) {
   if (template === "cancelled") return cancelProviderMeeting(env, booking);
-  if (template === "reminder" && booking.meeting_provider_event_id)
-    return booking;
+  if (template === "reminder") return booking;
   if (template === "meeting_details")
     return booking.meeting_provider_event_id && booking.meeting_url
       ? booking
@@ -47,7 +48,6 @@ async function prepareMeetingForEmail(
     return booking.meeting_provider_event_id
       ? syncProviderMeeting(env, booking)
       : ensureProviderMeeting(env, booking);
-  if (template === "reminder") return ensureProviderMeeting(env, booking);
   return booking;
 }
 
@@ -55,8 +55,9 @@ export async function bookingAdminRoute(
   request: Request,
   env: Env,
   path: string,
-  actor: string,
+  user: WorkspaceUser,
 ): Promise<Response | null> {
+  const actor = user.email;
   const match = path.match(/^\/api\/admin\/bookings\/([^/]+)(\/email)?$/);
   if (!match) return null;
   const id = decodeURIComponent(match[1]);
@@ -64,7 +65,7 @@ export async function bookingAdminRoute(
   if (!booking) return json({ error: "Meeting request not found." }, 404);
 
   if (!match[2] && request.method === "GET") {
-    const [activities, emails, feedback] = await Promise.all([
+    const [activities, emails, feedback, attendees] = await Promise.all([
       env.DB.prepare(
         "SELECT * FROM activity_events WHERE booking_id=? ORDER BY created_at DESC",
       )
@@ -80,14 +81,25 @@ export async function bookingAdminRoute(
       )
         .bind(id)
         .first(),
+      listMeetingAttendees(env, booking),
     ]);
     return json({
       booking: normalizeBooking(booking),
       activities: activities.results,
       emails: emails.results,
       feedback,
+      attendees,
     });
   }
+
+  if (user.role === "viewer")
+    return json({ error: "View-only members cannot change requests." }, 403);
+  if (
+    user.role === "member" &&
+    booking.assigned_to &&
+    booking.assigned_to.toLowerCase() !== user.email.toLowerCase()
+  )
+    return json({ error: "This request is assigned to another organizer." }, 403);
 
   if (match[2] === "/email" && request.method === "POST") {
     const body: unknown = await request.json().catch(() => null);
@@ -99,6 +111,19 @@ export async function bookingAdminRoute(
     );
     if (!EMAIL_TEMPLATES.has(template))
       return json({ error: "Unknown email template." }, 400);
+    if (
+      ["meeting_details", "rescheduled_confirmation"].includes(template) &&
+      !booking.meeting_sent_at
+    )
+      return json(
+        {
+          error:
+            "Use Create meeting to review the organizer, provider, title, time, and attendees first.",
+        },
+        409,
+      );
+    if (template === "reminder" && !booking.meeting_sent_at)
+      return json({ error: "Create the meeting before sending a reminder." }, 409);
     try {
       const prepared = await prepareMeetingForEmail(env, booking, template);
       if (
@@ -188,11 +213,17 @@ export async function bookingAdminRoute(
       typeof body === "object" && body !== null
         ? (body as Record<string, unknown>)
         : {};
+    const supplied = (key: string) =>
+      Object.prototype.hasOwnProperty.call(input, key);
     const status = safeText(input.status, 30) as WorkflowStatus;
     if (!WORKFLOW_STATUSES.has(status))
       return json({ error: "Invalid status." }, 400);
-    const finalStartsAt = safeText(input.finalStartsAt, 40);
-    const submittedMeetingUrl = safeText(input.meetingUrl, 500);
+    const finalStartsAt = supplied("finalStartsAt")
+      ? safeText(input.finalStartsAt, 40)
+      : booking.final_starts_at || "";
+    const submittedMeetingUrl = supplied("meetingUrl")
+      ? safeText(input.meetingUrl, 500)
+      : booking.meeting_url || "";
     const meetingProviderPreference =
       safeText(input.meetingProviderPreference, 20) ||
       booking.meeting_provider_preference ||
@@ -217,8 +248,14 @@ export async function bookingAdminRoute(
         finalStartsAt || null,
         meetingUrl,
         meetingProviderPreference,
-        safeText(input.meetingNotes, 2000) || null,
-        safeText(input.assignedTo, 254) || null,
+        supplied("meetingNotes")
+          ? safeText(input.meetingNotes, 2000) || null
+          : booking.meeting_notes,
+        user.role === "member"
+          ? user.email
+          : supplied("assignedTo")
+            ? safeText(input.assignedTo, 254) || null
+            : booking.assigned_to,
         new Date().toISOString(),
         id,
       )

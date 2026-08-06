@@ -44,6 +44,12 @@ export async function connectionForMeeting(
     .first<SelectedCalendarConnection>();
   if (own) return { connection: own, usedOwnerFallback: false };
 
+  const fallback = await env.DB.prepare(
+    "SELECT setting_value FROM workspace_settings WHERE setting_key='calendar_owner_fallback_enabled'",
+  ).first<{ setting_value: string }>();
+  if (fallback?.setting_value === "false")
+    return { connection: null, usedOwnerFallback: false };
+
   const owner = await env.DB.prepare(
     `SELECT c.* FROM calendar_connections c
      JOIN workspace_users u ON u.email=c.workspace_user_email COLLATE NOCASE

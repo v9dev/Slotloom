@@ -81,6 +81,7 @@ export type WorkspaceUser = {
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;
+  email_provider_preference?: "auto" | "google" | "microsoft";
 };
 export type BookingRow = {
   id: string;
@@ -97,6 +98,7 @@ export type BookingRow = {
   admin_note: string | null;
   meeting_url: string | null;
   meeting_notes: string | null;
+  meeting_title?: string | null;
   meeting_sent_at: string | null;
   meeting_provider?: string | null;
   meeting_provider_preference?: string | null;
@@ -137,6 +139,8 @@ export type LinkRow = {
   valid_until: string | null;
   status: LinkStatus;
   allow_slot_holds: number;
+  allow_custom_meeting_title?: number;
+  allow_additional_attendees?: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -376,13 +380,29 @@ export function slotsForSchedule(
 ) {
   const today = partsAt(now, link.time_zone);
   const base = new Date(Date.UTC(+today.year, +today.month - 1, +today.day));
+  const parseDate = (value?: string | null) => {
+    if (!value) return null;
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const configuredStart = parseDate(link.valid_from);
+  const configuredEnd = parseDate(link.valid_until);
+  const firstDay =
+    configuredStart && configuredStart > base ? configuredStart : base;
+  const legacyEnd = new Date(
+    base.getTime() + Math.min(Math.max(link.days_ahead, 0), 365) * 86_400_000,
+  );
+  const requestedEnd = configuredEnd || legacyEnd;
+  const lastDay = new Date(
+    Math.min(requestedEnd.getTime(), firstDay.getTime() + 365 * 86_400_000),
+  );
   const earliest = now.getTime() + link.minimum_notice_hours * 3_600_000;
   const slots: { startsAt: string; label: string }[] = [];
-  for (let offset = 0; offset <= link.days_ahead; offset += 1) {
-    const day = new Date(base.getTime() + offset * 86_400_000);
-    const dateKey = day.toISOString().slice(0, 10);
-    if (link.valid_from && dateKey < link.valid_from) continue;
-    if (link.valid_until && dateKey > link.valid_until) continue;
+  for (
+    let day = firstDay;
+    day <= lastDay;
+    day = new Date(day.getTime() + 86_400_000)
+  ) {
     for (const rule of rules.filter(
       (item) => item.weekday === day.getUTCDay(),
     )) {
@@ -432,6 +452,8 @@ export function normalizeLink(row: LinkRow, rules: RuleRow[] = []) {
     validUntil: row.valid_until,
     status: row.status,
     allowSlotHolds: Boolean(row.allow_slot_holds),
+    allowCustomMeetingTitle: Boolean(row.allow_custom_meeting_title),
+    allowAdditionalAttendees: Boolean(row.allow_additional_attendees),
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -461,6 +483,7 @@ export function normalizeBooking(row: BookingRow) {
     adminNote: row.admin_note,
     meetingUrl: row.meeting_url,
     meetingNotes: row.meeting_notes,
+    meetingTitle: row.meeting_title || row.link_title || "Meeting",
     meetingSentAt: row.meeting_sent_at,
     meetingProvider: row.meeting_provider,
     meetingProviderPreference: row.meeting_provider_preference || "workspace",
@@ -668,6 +691,8 @@ export function emailContent(
   const meetingLine = booking.meeting_url
     ? `\n\nJoin the meeting: ${booking.meeting_url}`
     : "";
+  const meetingTitle =
+    booking.meeting_title || booking.link_title || "Your meeting";
   const messages: Record<
     string,
     { subject: string; intro: string; action?: string }
@@ -677,12 +702,12 @@ export function emailContent(
       intro: `We received your availability for ${time}. This is not yet a confirmed meeting; we’ll follow up shortly.`,
     },
     meeting_details: {
-      subject: `Your meeting is confirmed: ${booking.link_title || "Meeting"}`,
-      intro: `${booking.link_title || "Your meeting"} is confirmed for ${time}.`,
+      subject: `Your meeting is confirmed: ${meetingTitle}`,
+      intro: `${meetingTitle} is confirmed for ${time}.`,
       action: meetingLine,
     },
     rescheduled_confirmation: {
-      subject: `${booking.link_title || "Your meeting"} is confirmed`,
+      subject: `${meetingTitle} is confirmed`,
       intro: `Your rescheduled meeting is confirmed for ${time}.`,
       action: meetingLine,
     },
@@ -758,13 +783,14 @@ export function calendarInvite(
   booking: BookingRow,
   env: Env,
   appName = DEFAULT_APP_NAME,
+  attendees: Array<{ email: string }> = [{ email: booking.email }],
 ) {
   const start = new Date(booking.final_starts_at || booking.starts_at);
   const end = new Date(
     start.getTime() + (booking.duration_minutes || 30) * 60_000,
   );
   const organizer = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
-  const title = booking.link_title || "Meeting";
+  const title = booking.meeting_title || booking.link_title || "Meeting";
   const description = booking.meeting_url
     ? `Join the meeting: ${booking.meeting_url}`
     : `Meeting arranged through ${appName}`;
@@ -783,7 +809,9 @@ export function calendarInvite(
     `SUMMARY:${calendarText(title)}`,
     `DESCRIPTION:${calendarText(description)}`,
     `ORGANIZER;CN=${DEFAULT_APP_NAME}:mailto:${organizer}`,
-    `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
+    ...attendees.map(
+      (attendee) => `ATTENDEE;RSVP=TRUE:mailto:${attendee.email}`,
+    ),
     ...(booking.meeting_url
       ? [
           `LOCATION:${calendarText(booking.meeting_url)}`,
@@ -858,7 +886,7 @@ export async function configuredEmailContent(
     meeting_url: booking.meeting_url || "",
     manage_url: manageUrl,
     app_name: workspaceBrand.name,
-    meeting_title: booking.link_title || "Meeting",
+    meeting_title: booking.meeting_title || booking.link_title || "Meeting",
   };
   const text = replaceVariables(configured.text_body, variables).replaceAll(
     "\\n",

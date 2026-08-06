@@ -141,6 +141,22 @@ import {
   slugFrom,
   weekDays,
 } from "./shared";
+
+const rawDateRangeDays = (from: string, until: string) => {
+  if (!from || !until) return null;
+  const fromTime = Date.parse(`${from}T00:00:00.000Z`);
+  const untilTime = Date.parse(`${until}T00:00:00.000Z`);
+  return Number.isFinite(fromTime) && Number.isFinite(untilTime)
+    ? Math.round((untilTime - fromTime) / 86_400_000)
+    : null;
+};
+
+const dateRangeDays = (from: string, until: string, fallback: number) => {
+  if (!from || !until) return fallback;
+  const range = rawDateRangeDays(from, until);
+  return range === null ? fallback : Math.max(1, Math.min(365, range));
+};
+
 export function CreateLinkDialog({
   open,
   setOpen,
@@ -160,11 +176,13 @@ export function CreateLinkDialog({
   const [duration, setDuration] = useState(30);
   const [interval, setInterval] = useState(30);
   const [buffer, setBuffer] = useState(0);
-  const [notice, setNotice] = useState(4);
-  const [daysAhead, setDaysAhead] = useState(21);
+  const [notice, setNotice] = useState(0);
   const [validFrom, setValidFrom] = useState(() => dateValue(new Date()));
   const [validUntil, setValidUntil] = useState(() => dateAfter(30));
   const [status, setStatus] = useState<"draft" | "active">("active");
+  const [allowCustomMeetingTitle, setAllowCustomMeetingTitle] = useState(false);
+  const [allowAdditionalAttendees, setAllowAdditionalAttendees] =
+    useState(false);
   const [rules, setRules] = useState(
     [1, 2, 3, 4, 5].map((weekday) => ({
       weekday,
@@ -181,8 +199,11 @@ export function CreateLinkDialog({
     setSlug("");
     setSlugEdited(false);
     setDescription("");
+    setNotice(0);
     setValidFrom(dateValue(new Date()));
     setValidUntil(dateAfter(30));
+    setAllowCustomMeetingTitle(false);
+    setAllowAdditionalAttendees(false);
     setRules(
       [1, 2, 3, 4, 5].map((weekday) => ({
         weekday,
@@ -220,6 +241,8 @@ export function CreateLinkDialog({
       );
     if (step === 1 && validFrom > validUntil)
       return setError("The end date must be on or after the start date.");
+    if (step === 1 && (rawDateRangeDays(validFrom, validUntil) || 0) > 365)
+      return setError("The date range cannot be longer than 365 days.");
     setError("");
     setStep((current) => Math.min(3, current + 1));
   }
@@ -236,12 +259,14 @@ export function CreateLinkDialog({
         slotIntervalMinutes: interval,
         bufferMinutes: buffer,
         timeZone,
-        daysAhead,
+        daysAhead: dateRangeDays(validFrom, validUntil, 30),
         minimumNoticeHours: notice,
         validFrom,
         validUntil,
         status,
         allowSlotHolds: false,
+        allowCustomMeetingTitle,
+        allowAdditionalAttendees,
         availability: rules,
       });
       toast.success("Booking link created and ready to share");
@@ -487,23 +512,6 @@ export function CreateLinkDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Booking window">
-              <Select
-                value={String(daysAhead)}
-                onValueChange={(value) => setDaysAhead(Number(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[7, 14, 21, 30, 60, 90].map((value) => (
-                    <SelectItem key={value} value={String(value)}>
-                      {value} days ahead
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
             <Field label="Publishing">
               <Select
                 value={status}
@@ -520,6 +528,33 @@ export function CreateLinkDialog({
                 </SelectContent>
               </Select>
             </Field>
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
+              <div>
+                <p className="text-sm font-medium">Visitor meeting title</p>
+                <p className="text-xs text-muted-foreground">
+                  Let the visitor suggest a meeting title for organizer review.
+                </p>
+              </div>
+              <Switch
+                checked={allowCustomMeetingTitle}
+                onCheckedChange={setAllowCustomMeetingTitle}
+                aria-label="Allow visitor meeting title"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
+              <div>
+                <p className="text-sm font-medium">Additional attendees</p>
+                <p className="text-xs text-muted-foreground">
+                  Let the visitor suggest up to nine additional attendees.
+                  Invitations are sent only after organizer approval.
+                </p>
+              </div>
+              <Switch
+                checked={allowAdditionalAttendees}
+                onCheckedChange={setAllowAdditionalAttendees}
+                aria-label="Allow additional attendees"
+              />
+            </div>
           </div>
         )}
         {step === 3 && (
@@ -553,9 +588,11 @@ export function CreateLinkDialog({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    Booking window
+                    Minimum notice
                   </p>
-                  <p className="mt-1 font-medium">{daysAhead} days</p>
+                  <p className="mt-1 font-medium">
+                    {notice ? `${notice} hours` : "No minimum"}
+                  </p>
                 </div>
               </div>
               <div className="mt-4 rounded-lg bg-muted/40 p-3 text-sm">
@@ -563,6 +600,19 @@ export function CreateLinkDialog({
                 <span className="font-medium">
                   {formatDateOnly(validFrom)} – {formatDateOnly(validUntil)}
                 </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {allowCustomMeetingTitle && (
+                  <Badge variant="secondary">Visitor meeting title</Badge>
+                )}
+                {allowAdditionalAttendees && (
+                  <Badge variant="secondary">Additional attendees</Badge>
+                )}
+                {!allowCustomMeetingTitle && !allowAdditionalAttendees && (
+                  <Badge variant="outline">
+                    Organizer controls meeting details
+                  </Badge>
+                )}
               </div>
             </div>
             <Alert>
@@ -618,12 +668,20 @@ export function LinkSettingsDialog({
   const [status, setStatus] = useState(link?.status || "draft");
   const [validFrom, setValidFrom] = useState(link?.validFrom || "");
   const [validUntil, setValidUntil] = useState(link?.validUntil || "");
+  const [allowCustomMeetingTitle, setAllowCustomMeetingTitle] = useState(
+    link?.allowCustomMeetingTitle || false,
+  );
+  const [allowAdditionalAttendees, setAllowAdditionalAttendees] = useState(
+    link?.allowAdditionalAttendees || false,
+  );
   const [error, setError] = useState("");
   useEffect(() => {
     setRules(link?.availability || []);
     setStatus(link?.status || "draft");
     setValidFrom(link?.validFrom || "");
     setValidUntil(link?.validUntil || "");
+    setAllowCustomMeetingTitle(link?.allowCustomMeetingTitle || false);
+    setAllowAdditionalAttendees(link?.allowAdditionalAttendees || false);
   }, [link]);
   if (!link) return null;
   const currentLink = link;
@@ -644,6 +702,8 @@ export function LinkSettingsDialog({
     const f = new FormData(e.currentTarget);
     if (validFrom && validUntil && validFrom > validUntil)
       return setError("The end date must be on or after the start date.");
+    if ((rawDateRangeDays(validFrom, validUntil) || 0) > 365)
+      return setError("The date range cannot be longer than 365 days.");
     try {
       await api.updateLink(currentLink.id, {
         title: String(f.get("title")),
@@ -654,12 +714,14 @@ export function LinkSettingsDialog({
         slotIntervalMinutes: Number(f.get("interval")),
         bufferMinutes: Number(f.get("buffer")),
         timeZone: String(f.get("timezone")),
-        daysAhead: Number(f.get("daysAhead")),
+        daysAhead: dateRangeDays(validFrom, validUntil, currentLink.daysAhead),
         minimumNoticeHours: Number(f.get("notice")),
         validFrom,
         validUntil,
         status,
         allowSlotHolds: false,
+        allowCustomMeetingTitle,
+        allowAdditionalAttendees,
         availability: rules,
       });
       toast.success("Booking link updated");
@@ -831,15 +893,6 @@ export function LinkSettingsDialog({
                   defaultValue={link.minimumNoticeHours}
                 />
               </Field>
-              <Field label="Booking window (days)">
-                <Input
-                  name="daysAhead"
-                  type="number"
-                  min="1"
-                  max="365"
-                  defaultValue={link.daysAhead}
-                />
-              </Field>
               <Field label="Time zone">
                 <TimeZoneSelect
                   name="timezone"
@@ -847,6 +900,33 @@ export function LinkSettingsDialog({
                   label="Scheduling time zone"
                 />
               </Field>
+              <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-medium">Visitor meeting title</p>
+                  <p className="text-xs text-muted-foreground">
+                    Allow a suggested title that the organizer reviews before
+                    creating the meeting.
+                  </p>
+                </div>
+                <Switch
+                  checked={allowCustomMeetingTitle}
+                  onCheckedChange={setAllowCustomMeetingTitle}
+                  aria-label="Allow visitor meeting title"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-medium">Additional attendees</p>
+                  <p className="text-xs text-muted-foreground">
+                    Allow up to nine additional attendee suggestions.
+                  </p>
+                </div>
+                <Switch
+                  checked={allowAdditionalAttendees}
+                  onCheckedChange={setAllowAdditionalAttendees}
+                  aria-label="Allow additional attendees"
+                />
+              </div>
             </TabsContent>
           </Tabs>
           {error && (

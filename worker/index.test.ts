@@ -32,6 +32,11 @@ import { gmailRawMessage } from "./email-mime";
 import { grantsMailSend, oauthScopes } from "./oauth-scopes";
 import { deliverEmail } from "./email-delivery";
 import { providerOwnsLifecycleMessage } from "./booking-admin";
+import { parseLinkInput } from "./public-routes";
+import {
+  AttendeeInputError,
+  parseAdditionalAttendees,
+} from "./meeting-attendees";
 
 const env = {
   APP_URL: "https://meet.example.com",
@@ -104,6 +109,99 @@ describe("slotsForSchedule", () => {
       "2026-08-04T09:45:00.000Z",
       "2026-08-04T10:30:00.000Z",
     ]);
+  });
+
+  it("includes same-day slots when a complete meeting still fits", () => {
+    const slots = slotsForSchedule(
+      {
+        time_zone: "UTC",
+        days_ahead: 1,
+        minimum_notice_hours: 0,
+        duration_minutes: 30,
+        slot_interval_minutes: 30,
+        buffer_minutes: 0,
+      },
+      [
+        {
+          id: "rule",
+          booking_link_id: "link",
+          weekday: 2,
+          start_time: "10:00",
+          end_time: "17:00",
+        },
+      ],
+      new Date("2026-08-04T15:10:00.000Z"),
+    );
+
+    expect(slots.map((slot) => slot.startsAt)).toEqual([
+      "2026-08-04T15:30:00.000Z",
+      "2026-08-04T16:00:00.000Z",
+      "2026-08-04T16:30:00.000Z",
+    ]);
+  });
+
+  it("uses the exact date range instead of truncating it by days ahead", () => {
+    const slots = slotsForSchedule(
+      {
+        time_zone: "UTC",
+        days_ahead: 1,
+        minimum_notice_hours: 0,
+        duration_minutes: 30,
+        slot_interval_minutes: 30,
+        buffer_minutes: 0,
+        valid_from: "2026-08-10",
+        valid_until: "2026-08-12",
+      },
+      [1, 2, 3].map((weekday) => ({
+        id: `rule-${weekday}`,
+        booking_link_id: "link",
+        weekday,
+        start_time: "09:00",
+        end_time: "09:30",
+      })),
+      new Date("2026-08-04T00:00:00.000Z"),
+    );
+
+    expect(slots.map((slot) => slot.startsAt)).toEqual([
+      "2026-08-10T09:00:00.000Z",
+      "2026-08-11T09:00:00.000Z",
+      "2026-08-12T09:00:00.000Z",
+    ]);
+  });
+});
+
+describe("parseLinkInput", () => {
+  const requestForRange = (validFrom: string, validUntil: string) =>
+    new Request("https://meet.example.com/api/admin/links", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Product introduction",
+        slug: "product-introduction",
+        durationMinutes: 30,
+        slotIntervalMinutes: 30,
+        bufferMinutes: 0,
+        timeZone: "UTC",
+        validFrom,
+        validUntil,
+        status: "active",
+        availability: [{ weekday: 1, startTime: "09:00", endTime: "17:00" }],
+      }),
+    });
+
+  it("defaults new links to no advance notice and derives compatibility days", async () => {
+    const input = await parseLinkInput(
+      requestForRange("2026-08-10", "2026-08-12"),
+    );
+
+    expect(input?.minimumNoticeHours).toBe(0);
+    expect(input?.daysAhead).toBe(2);
+  });
+
+  it("rejects date ranges longer than 365 days", async () => {
+    expect(
+      await parseLinkInput(requestForRange("2026-01-01", "2027-01-02")),
+    ).toBeNull();
   });
 });
 
@@ -184,9 +282,12 @@ describe("emailContent", () => {
         updated_at: "2026-08-04T00:00:00.000Z",
       },
       env as never,
+      "Slotloom",
+      [{ email: "taylor@example.com" }, { email: "guest@example.com" }],
     );
     expect(invite).toContain("ORGANIZER;CN=Slotloom:mailto:owner@example.com");
     expect(invite).toContain("BEGIN:VCALENDAR");
+    expect(invite).toContain("ATTENDEE;RSVP=TRUE:mailto:guest@example.com");
   });
 
   it("builds Gmail MIME and keeps Worker attachments as raw content", async () => {
@@ -278,6 +379,70 @@ describe("emailContent", () => {
       ),
     ).rejects.toThrow("No active Google Gmail connection");
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it("keeps meeting email on its selected provider before workspace fallback", async () => {
+    const connectionLookups: string[] = [];
+    const database = {
+      prepare: (query: string) => {
+        let values: unknown[] = [];
+        const first = async () => {
+          if (query.includes("workspace_users WHERE email"))
+            return { email_provider_preference: "microsoft" };
+          if (query.includes("SELECT * FROM calendar_connections")) {
+            connectionLookups.push(String(values[0]));
+            return values[0] === "microsoft"
+              ? {
+                  id: "member-microsoft",
+                  provider: "microsoft",
+                  provider_email: "member@example.com",
+                  scopes: "Mail.Send",
+                  status: "active",
+                }
+              : null;
+          }
+          return null;
+        };
+        const all = async () => {
+          if (query.includes("workspace_settings"))
+            return {
+              results: [
+                {
+                  setting_key: "email_fallback_method",
+                  setting_value: "none",
+                },
+              ],
+            };
+          return { results: [] };
+        };
+        return {
+          first,
+          all,
+          bind: (...bound: unknown[]) => {
+            values = bound;
+            return { first, all };
+          },
+        };
+      },
+    };
+
+    await expect(
+      deliverEmail(
+        { DB: database } as never,
+        "member@example.com",
+        {
+          to: "visitor@example.com",
+          subject: "Meeting reminder",
+          text: "Join the meeting.",
+          html: "<p>Join the meeting.</p>",
+        },
+        undefined,
+        "google",
+      ),
+    ).rejects.toThrow(
+      "No personal mailbox or workspace email fallback is available.",
+    );
+    expect(connectionLookups).toEqual(["google"]);
   });
 });
 
@@ -391,11 +556,15 @@ describe("calendar integration security", () => {
     ).toBe(false);
   });
 
-  it("requests narrow calendar and email sending permissions", () => {
-    expect(oauthScopes.google).toContain(
+  it("requests calendar access first and mail access only when enabled", () => {
+    expect(oauthScopes("google")).not.toContain(
       "https://www.googleapis.com/auth/gmail.send",
     );
-    expect(oauthScopes.microsoft).toContain("Mail.Send");
+    expect(oauthScopes("microsoft")).not.toContain("Mail.Send");
+    expect(oauthScopes("google", true)).toContain(
+      "https://www.googleapis.com/auth/gmail.send",
+    );
+    expect(oauthScopes("microsoft", true)).toContain("Mail.Send");
     expect(
       grantsMailSend(
         "google",
@@ -453,15 +622,24 @@ describe("calendar integration security", () => {
       final_starts_at: null,
       duration_minutes: 45,
       link_title: "Product review",
+      meeting_title: "Taylor product review",
       meeting_notes: "Bring the project brief.",
     } as never;
-    const google = googleEventBody(booking, true);
-    const microsoft = microsoftEventBody(booking, true);
+    const attendees = [
+      { name: "Taylor", email: "taylor@example.com" },
+      { name: "Jordan", email: "jordan@example.com" },
+    ];
+    const google = googleEventBody(booking, true, attendees);
+    const microsoft = microsoftEventBody(booking, true, attendees);
 
     expect(google.conferenceData.createRequest.conferenceSolutionKey.type).toBe(
       "hangoutsMeet",
     );
-    expect(google.attendees).toEqual([{ email: "taylor@example.com" }]);
+    expect(google.summary).toBe("Taylor product review");
+    expect(google.attendees).toEqual([
+      { email: "taylor@example.com" },
+      { email: "jordan@example.com" },
+    ]);
     expect(microsoft.isOnlineMeeting).toBe(true);
     expect(microsoft.onlineMeetingProvider).toBe("teamsForBusiness");
     expect(microsoft.transactionId).toBe("booking-1");
@@ -475,12 +653,11 @@ describe("calendar integration security", () => {
       status: "active",
     };
     const database = {
-      prepare: (query: string) => ({
-        bind: () => ({
-          first: async () =>
-            query.includes("JOIN workspace_users") ? ownerConnection : null,
-        }),
-      }),
+      prepare: (query: string) => {
+        const first = async () =>
+          query.includes("JOIN workspace_users") ? ownerConnection : null;
+        return { first, bind: () => ({ first }) };
+      },
     };
     const provider = await meetingProviderForBooking(
       { DB: database } as never,
@@ -498,6 +675,27 @@ describe("calendar integration security", () => {
     expect(provider).toBe("google");
     expect(selected.usedOwnerFallback).toBe(true);
     expect(selected.connection?.id).toBe("owner-google");
+  });
+
+  it("validates and deduplicates additional attendees", () => {
+    expect(
+      parseAdditionalAttendees(
+        [
+          { name: "Jordan", email: "JORDAN@example.com" },
+          { name: "Morgan", email: "morgan@example.com" },
+        ],
+        "taylor@example.com",
+      ),
+    ).toEqual([
+      { name: "Jordan", email: "jordan@example.com" },
+      { name: "Morgan", email: "morgan@example.com" },
+    ]);
+    expect(() =>
+      parseAdditionalAttendees(
+        [{ name: "Taylor", email: "taylor@example.com" }],
+        "taylor@example.com",
+      ),
+    ).toThrow(AttendeeInputError);
   });
 
   it("binds OAuth state to a short-lived HttpOnly browser cookie", async () => {
@@ -524,8 +722,28 @@ describe("calendar integration security", () => {
         { APP_URL: "https://meet.example.com" } as never,
         "google",
         "connected",
+      ).headers.get("location"),
+    ).toBe(
+      "https://meet.example.com/admin?connections=open&oauth=connected&provider=google",
+    );
+    expect(
+      calendarOAuthRedirect(
+        { APP_URL: "https://meet.example.com" } as never,
+        "google",
+        "connected",
       ).headers.get("set-cookie"),
     ).toContain("Max-Age=0");
+    expect(
+      calendarOAuthRedirect(
+        { APP_URL: "https://meet.example.com" } as never,
+        "microsoft",
+        "connected",
+        undefined,
+        "integrations",
+      ).headers.get("location"),
+    ).toBe(
+      "https://meet.example.com/admin/integrations?oauth=connected&provider=microsoft",
+    );
   });
 });
 

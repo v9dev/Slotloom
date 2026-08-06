@@ -13,6 +13,12 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
 import type { BookingLink, Slot } from "@/types";
 import { BrandLogo } from "@/components/BrandLogo";
+import { PublicFooter } from "@/components/PublicFooter";
+import {
+  AttendeeEditor,
+  attendeeDraftError,
+  type AttendeeDraft,
+} from "@/components/AttendeeEditor";
 import { brand, setPageTitle } from "@/brand";
 import { browserTimeZone, TimeZoneSelect } from "@/components/TimeZoneSelect";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -37,6 +43,8 @@ export default function PublicBooking({ slug }: { slug: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [attendees, setAttendees] = useState<AttendeeDraft[]>([]);
   const [selected, setSelected] = useState("");
   const [day, setDay] = useState("");
   const [error, setError] = useState("");
@@ -57,16 +65,18 @@ export default function PublicBooking({ slug }: { slug: string }) {
   }, [data?.link.title]);
   const groups = useMemo(
     () =>
-      data?.slots.reduce<Record<string, Slot[]>>((all, slot) => {
-        const key = new Intl.DateTimeFormat("en", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          timeZone: visitorTimeZone,
-        }).format(new Date(slot.startsAt));
-        (all[key] ||= []).push(slot);
-        return all;
-      }, {}) || {},
+      data?.slots
+        .filter((slot) => !slot.booked)
+        .reduce<Record<string, Slot[]>>((all, slot) => {
+          const key = new Intl.DateTimeFormat("en", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            timeZone: visitorTimeZone,
+          }).format(new Date(slot.startsAt));
+          (all[key] ||= []).push(slot);
+          return all;
+        }, {}) || {},
     [data, visitorTimeZone],
   );
   const dates = Object.keys(groups);
@@ -76,6 +86,9 @@ export default function PublicBooking({ slug }: { slug: string }) {
     if (name.trim().length < 2) return setError("Enter your full name.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return setError("Enter a valid email address.");
+    const attendeeError = attendeeDraftError(attendees, email);
+    if (data?.link.allowAdditionalAttendees && attendeeError)
+      return setError(attendeeError);
     setError("");
     setStep("slot");
   }
@@ -92,6 +105,15 @@ export default function PublicBooking({ slug }: { slug: string }) {
         startsAt: selected,
         timeZone: visitorTimeZone,
         turnstileToken,
+        meetingTitle: data?.link.allowCustomMeetingTitle
+          ? meetingTitle.trim()
+          : undefined,
+        attendees: data?.link.allowAdditionalAttendees
+          ? attendees.map((attendee) => ({
+              name: attendee.name.trim(),
+              email: attendee.email.trim(),
+            }))
+          : undefined,
       });
       setStep("success");
     } catch (e) {
@@ -203,6 +225,33 @@ export default function PublicBooking({ slug }: { slug: string }) {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
+                {data.link.allowCustomMeetingTitle && (
+                  <div className="space-y-2">
+                    <Label htmlFor="meeting-title">
+                      Meeting title{" "}
+                      <span className="font-normal text-muted-foreground">
+                        (optional)
+                      </span>
+                    </Label>
+                    <Input
+                      id="meeting-title"
+                      maxLength={140}
+                      placeholder={data.link.title}
+                      value={meetingTitle}
+                      onChange={(event) => setMeetingTitle(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This is a suggestion. The organizer can review it before
+                      creating the meeting.
+                    </p>
+                  </div>
+                )}
+                {data.link.allowAdditionalAttendees && (
+                  <AttendeeEditor
+                    attendees={attendees}
+                    onChange={setAttendees}
+                  />
+                )}
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -232,57 +281,62 @@ export default function PublicBooking({ slug }: { slug: string }) {
                     label="Display time zone"
                   />
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {dates.map((date) => (
-                    <Button
-                      key={date}
-                      type="button"
-                      variant={activeDay === date ? "default" : "outline"}
-                      className="h-auto min-w-28 flex-col items-start px-4 py-3"
-                      onClick={() => {
-                        setDay(date);
-                        setSelected("");
-                      }}
-                    >
-                      <span className="text-xs opacity-70">
-                        {date.split(",")[0]}
-                      </span>
-                      <span>{date.split(",").slice(1)}</span>
-                    </Button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(groups[activeDay] || []).map((slot) => (
-                    <Button
-                      type="button"
-                      disabled={slot.booked}
-                      variant={
-                        selected === slot.startsAt ? "default" : "outline"
-                      }
-                      className={
-                        slot.booked
-                          ? "border-red-500/20 bg-red-500/10 text-red-700 opacity-70 dark:text-red-300"
-                          : undefined
-                      }
-                      key={slot.startsAt}
-                      onClick={() => setSelected(slot.startsAt)}
-                      aria-label={`${new Intl.DateTimeFormat("en", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        timeZone: visitorTimeZone,
-                      }).format(new Date(slot.startsAt))}${slot.booked ? ", booked" : ""}`}
-                    >
-                      <span>
-                        {new Intl.DateTimeFormat("en", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                          timeZone: visitorTimeZone,
-                        }).format(new Date(slot.startsAt))}
-                      </span>
-                      {slot.booked && <span className="ml-1 text-[10px] font-medium">Booked</span>}
-                    </Button>
-                  ))}
-                </div>
+                {dates.length ? (
+                  <>
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {dates.map((date) => (
+                        <Button
+                          key={date}
+                          type="button"
+                          variant={activeDay === date ? "default" : "outline"}
+                          className="h-auto min-w-28 flex-col items-start px-4 py-3"
+                          onClick={() => {
+                            setDay(date);
+                            setSelected("");
+                          }}
+                        >
+                          <span className="text-xs opacity-70">
+                            {date.split(",")[0]}
+                          </span>
+                          <span>{date.split(",").slice(1)}</span>
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {(groups[activeDay] || []).map((slot) => (
+                        <Button
+                          type="button"
+                          variant={
+                            selected === slot.startsAt ? "default" : "outline"
+                          }
+                          key={slot.startsAt}
+                          onClick={() => setSelected(slot.startsAt)}
+                          aria-label={new Intl.DateTimeFormat("en", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            timeZone: visitorTimeZone,
+                          }).format(new Date(slot.startsAt))}
+                        >
+                          {new Intl.DateTimeFormat("en", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            timeZone: visitorTimeZone,
+                          }).format(new Date(slot.startsAt))}
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-dashed p-8 text-center">
+                    <CalendarDays className="mx-auto size-5 text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium">
+                      No times are available in this date range
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Ask the organizer to add more availability.
+                    </p>
+                  </div>
+                )}
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -382,8 +436,13 @@ export default function PublicBooking({ slug }: { slug: string }) {
           </section>
         </div>
         <p className="mt-5 text-center text-xs text-muted-foreground">
-          Your information is used only to coordinate this meeting.
+          Your information is used only to coordinate this meeting. Read our{" "}
+          <a className="underline underline-offset-4" href="/privacy">
+            privacy policy
+          </a>
+          .
         </p>
+        <PublicFooter className="mt-6 border-t px-2 pt-5" />
       </div>
     </main>
   );

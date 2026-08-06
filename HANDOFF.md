@@ -122,17 +122,18 @@ domain, keep the `EMAIL` binding in the Worker configuration, and configure
 block from a private Wrangler configuration when an installation will use only
 OAuth mailboxes.
 
-The workspace owner selects **Cloudflare Worker Email**, **Connected Google
-Gmail**, or **Connected Microsoft Outlook** in **Calendar and email
-integrations**. When an OAuth mailbox is selected, the owner may separately
-enable Worker Email as a fallback. Slotloom never changes transports silently
-unless that fallback is enabled.
+Each non-viewer connects a personal Google or Microsoft calendar from **My
+connected accounts** in the workspace header. Gmail or Outlook sending is an
+optional permission that the user enables separately. The owner selects **No
+workspace fallback**, **Cloudflare Worker Email**, **Owner Gmail**, or **Owner
+Outlook** in **Calendar and email**. Worker Email can also be the final fallback
+after an owner OAuth fallback.
 
-## Google Meet OAuth
+## Google OAuth
 
-The callback URL is shown and can be copied from **Calendar and email integrations** in
-Slotloom. It uses `APP_URL`, so it is the Pages or custom app hostname, not the
-Worker URL.
+The callback URL is shown in **Workspace settings → Google and Microsoft
+applications**. It uses `APP_URL`, so it is the Pages or custom app hostname,
+not the Worker URL.
 
 1. In Google Cloud, create or select a project and enable the Google Calendar
    API and Gmail API.
@@ -141,10 +142,14 @@ Worker URL.
    the app is in testing, add each permitted account as a test user.
 3. Create an OAuth client with application type **Web application**.
 4. Add the exact Slotloom Google callback URL as an authorized redirect URI.
-5. Copy the client ID and client secret into **Calendar and email integrations → Google
-   Meet** in Slotloom, then save.
-6. Each owner, admin, or member selects **Connect Google Meet** and approves
-   identity, owned-calendar event access, and the narrow `gmail.send` scope.
+5. Copy the client ID and client secret into **Workspace settings → Google** in
+   Slotloom, then save.
+6. Each owner, admin, or member opens **My connected accounts**, selects
+   **Connect Google Calendar**, and approves identity and owned-calendar event
+   access.
+7. A user who wants Slotloom transactional email from Gmail selects **Enable
+   Gmail** and approves the narrow `gmail.send` scope. Calendar meeting
+   invitations do not require this optional mail permission.
 
 Slotloom requests offline access so it can refresh tokens without asking the
 organizer to sign in for every meeting. It creates a Google Calendar event with
@@ -153,10 +158,10 @@ External app in Testing status, Google may expire refresh tokens for these
 calendar scopes after seven days. Publish and complete any required verification
 before relying on the integration in production. Google classifies
 `gmail.send` as a sensitive scope, so a public OAuth application may require
-additional verification. Existing connections must reauthorize after upgrading
-to grant email delivery.
+additional verification. Existing calendar connections continue working and
+reauthorize only when Gmail sending is enabled.
 
-## Microsoft Teams OAuth
+## Microsoft OAuth
 
 1. In Microsoft Entra admin center, open **App registrations** and create an app.
 2. To allow accounts from other organizations and personal Microsoft accounts,
@@ -164,17 +169,21 @@ to grant email delivery.
    `common` as the Slotloom tenant value. For one organization only, use its
    Directory (tenant) ID instead.
 3. Add a **Web** redirect URI using the exact Microsoft callback URL copied from
-   Slotloom.
+   **Workspace settings → Google and Microsoft applications**.
 4. Under API permissions, add delegated Microsoft Graph permissions
    `User.Read`, `Calendars.ReadWrite`, and `Mail.Send`. The authorization request
    also includes `openid`, `profile`, `email`, and `offline_access`.
 5. Create a client secret and immediately copy its **Value**, not its Secret ID,
-   into **Calendar and email integrations → Microsoft Teams** with the application client
-   ID and tenant value.
-6. Each owner, admin, or member selects **Connect Microsoft Teams** and consents.
+   into **Workspace settings → Microsoft** with the application client ID and
+   tenant value.
+6. Each owner, admin, or member opens **My connected accounts**, selects
+   **Connect Microsoft Calendar**, and consents to identity and calendar access.
+7. A user who wants Slotloom transactional email from Outlook selects **Enable
+   Outlook**. Slotloom then requests `Mail.Send`; it does not request mailbox
+   read access.
 
-Existing Microsoft connections must reauthorize after upgrading to grant
-`Mail.Send`.
+Existing Microsoft calendar connections continue working and reauthorize only
+when Outlook sending is enabled.
 
 Account authorization and Teams meeting availability are separate. An account
 can complete OAuth but still be unable to create a Teams meeting if its tenant,
@@ -182,14 +191,21 @@ calendar, policy, or license does not support Teams online meetings.
 
 ## Organizer selection and meeting lifecycle
 
-- A response may use the workspace default, Google Meet, Microsoft Teams, or a
-  manual HTTPS meeting link.
-- Slotloom first uses the assigned organizer's active connection for the chosen
-  provider. If that person is not connected, it falls back to an active owner
-  connection.
-- **Confirm and invite** creates the provider calendar event and meeting URL.
+- The workspace default is only the initial suggestion. The response handler
+  chooses Google Meet, Microsoft Teams, or a manual HTTPS link in **Create
+  meeting**.
+- Owners and admins can choose any active organizer. A member can create or
+  claim an unassigned meeting only for themselves and cannot take a response
+  assigned to someone else.
+- Slotloom first uses the selected organizer's active provider connection. If
+  that person is not connected and the owner enabled calendar fallback, it uses
+  an active owner connection and shows that fallback before creation.
+- The organizer reviews the meeting title, final time, and attendee list before
+  creation. Booking links can optionally let visitors suggest a title and up to
+  nine additional attendees.
 - Google or Microsoft sends the single provider-managed invitation. Slotloom
-  does not send a second confirmation for that event.
+  does not send a second confirmation for that event, and every reviewed
+  attendee is included.
 - Time changes update the same provider event. Cancellation removes that event.
 - Google or Microsoft sends the native calendar invitation, so Slotloom does not
   attach a duplicate ICS file for provider-managed meetings. Manual links retain
@@ -197,18 +213,35 @@ calendar, policy, or license does not support Teams online meetings.
 
 ## Transactional email routing
 
-- Availability receipts, reminders, follow-ups, and manual meeting details use
-  the delivery method selected by the workspace owner.
-- OAuth email first uses the assigned organizer's connected account for the
-  selected provider. If unavailable, it uses an active owner connection.
-- Worker Email is used directly when selected, or after OAuth failure only when
-  the owner enabled fallback.
+- Availability receipts, reminders, follow-ups, and manual meeting details first
+  use the assigned organizer's personal mailbox. A user can choose Google,
+  Microsoft, or Automatic; Automatic uses the only connected mail-capable
+  account when there is exactly one.
+- If the organizer has no usable personal mailbox, Slotloom uses the workspace
+  fallback selected by the owner. That fallback can be disabled, use Worker
+  Email, or use an owner Google or Microsoft connection.
+- Worker Email is used directly as the workspace fallback, or after an owner
+  OAuth fallback fails only when the owner enabled that final fallback.
 - Provider meeting invitations, reschedules, and cancellations remain owned by
   Google Calendar or Microsoft Graph to prevent duplicate messages.
-- Delivery history records the transport and sender address. Provider secrets
+- Additional attendees receive meeting details but never receive the primary
+  visitor's private self-service management token.
+- Delivery history records each recipient, transport, and sender address. Provider secrets
   and tokens remain encrypted with the Worker-held JOSE root key.
 - Disconnecting an account removes its encrypted tokens from D1. Existing remote
   calendar events remain until cancelled at the provider.
+
+## Booking date and availability behavior
+
+- A link's **valid from** and **valid until** dates are the exact scheduling
+  range. The legacy `days_ahead` database field is used only for older links
+  that do not have an end date.
+- New links default to no minimum notice, so today is shown whenever a complete
+  meeting still fits in an available window. Owners can add advance notice when
+  needed.
+- Past times, occupied times, and dates without any open slots are omitted from
+  public and rescheduling pages. The Worker rechecks availability during
+  submission to protect against simultaneous bookings.
 
 Provider client IDs and tenant IDs are non-secret and are visible in the owner
 UI. Provider client secrets are write-only. No Google or Microsoft credentials
