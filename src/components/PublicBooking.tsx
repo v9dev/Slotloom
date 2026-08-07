@@ -156,7 +156,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
           <BrandLogo />
           <p className="mt-2 text-sm text-muted-foreground">{brand.tagline}</p>
         </div>
-        <div className="grid overflow-hidden rounded-2xl border bg-background shadow-xl shadow-black/[.04] md:grid-cols-[320px_1fr]">
+        <div className="grid overflow-hidden rounded-2xl border bg-background shadow-xl shadow-black/[.04] md:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="border-b bg-muted/30 p-6 md:border-r md:border-b-0 md:p-8">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Book your slot
@@ -191,7 +191,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
               Step {progress} of 3
             </p>
           </aside>
-          <section className="p-6 sm:p-8 md:p-10">
+          <section className="min-w-0 p-6 sm:p-8 md:p-10">
             {step === "email" && (
               <form className="mx-auto max-w-md space-y-7" onSubmit={emailNext}>
                 <div>
@@ -302,7 +302,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
                         </Button>
                       ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                       {(groups[activeDay] || []).map((slot) => (
                         <Button
                           type="button"
