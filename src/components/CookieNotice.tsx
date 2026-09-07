@@ -54,12 +54,12 @@ export function CookieNotice() {
           </p>
         </div>
       </div>
-      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button asChild variant="ghost" className="min-h-11 px-4">
-          <a href="/cookies">Read cookie notice</a>
-        </Button>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row-reverse">
         <Button type="button" className="min-h-11 px-4" onClick={dismiss}>
           Got it
+        </Button>
+        <Button asChild variant="ghost" className="min-h-11 px-4">
+          <a href="/cookies">Read cookie notice</a>
         </Button>
       </div>
     </aside>
