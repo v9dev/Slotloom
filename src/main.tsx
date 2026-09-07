@@ -29,16 +29,33 @@ async function loadBranding() {
 
 await loadBranding();
 setPageTitle();
-document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute("href", brand.favicon);
+document
+  .querySelector<HTMLLinkElement>('link[rel="icon"]')
+  ?.setAttribute("href", brand.favicon);
+
+const currentPath = window.location.pathname.replace(/\/$/, "") || "/";
+const pageOwnsThemeToggle =
+  currentPath === "/" ||
+  currentPath === "/login" ||
+  currentPath === "/admin" ||
+  currentPath.startsWith("/admin/");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
         <App />
-        <div className="fixed bottom-4 right-4 z-50 rounded-full border bg-background/90 shadow-sm backdrop-blur">
-          <ThemeToggle />
-        </div>
+        {!pageOwnsThemeToggle && (
+          <div
+            className="fixed z-50 rounded-full border bg-background/95 shadow-sm backdrop-blur"
+            style={{
+              right: "max(1rem, env(safe-area-inset-right))",
+              bottom: "max(1rem, env(safe-area-inset-bottom))",
+            }}
+          >
+            <ThemeToggle />
+          </div>
+        )}
         <Toaster richColors position="top-right" />
       </TooltipProvider>
     </ThemeProvider>

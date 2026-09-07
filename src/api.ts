@@ -9,6 +9,7 @@ import type {
   WorkspaceUser,
   WorkflowStatus,
   EmailTemplate,
+  BookingAutoReplySettings,
   Notification,
   LinkAnalytics,
   MeetingFeedback,
@@ -258,6 +259,16 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
+  bookingAutoReply: () =>
+    request<BookingAutoReplySettings>("/api/admin/booking-auto-reply"),
+  updateBookingAutoReply: (payload: BookingAutoReplySettings) =>
+    request<BookingAutoReplySettings & { success: boolean }>(
+      "/api/admin/booking-auto-reply",
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    ),
   notifications: () =>
     request<{ notifications: Notification[] }>("/api/admin/notifications"),
   readNotifications: () =>

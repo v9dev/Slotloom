@@ -378,21 +378,25 @@ export default function LegalPage({
   useEffect(() => setPageTitle(title), [title]);
 
   return (
-    <main className="min-h-svh bg-muted/30 px-4 py-8 sm:px-6 sm:py-12">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="min-h-svh bg-muted/30 px-4 py-8 sm:px-6 sm:py-12"
+    >
       <div className="mx-auto max-w-3xl">
         <header className="mb-8 rounded-2xl border bg-background p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <BrandLogo className="max-w-44" />
             <Button asChild variant="outline" size="sm">
               <a href="/">
-                <ArrowLeft />
+                <ArrowLeft aria-hidden="true" />
                 Home
               </a>
             </Button>
           </div>
           <div className="mt-10 max-w-2xl">
             <span className="mb-4 flex size-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300">
-              <ShieldCheck className="size-5" />
+              <ShieldCheck className="size-5" aria-hidden="true" />
             </span>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               {title}

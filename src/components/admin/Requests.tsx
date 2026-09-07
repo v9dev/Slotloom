@@ -20,11 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -141,9 +137,7 @@ export function Requests({
       ids: selectedIds,
       status: bulkStatus,
       assignedTo:
-        canAssign && bulkAssignee !== "unchanged"
-          ? bulkAssignee
-          : undefined,
+        canAssign && bulkAssignee !== "unchanged" ? bulkAssignee : undefined,
     });
     toast.success(`${update.updated} responses updated`);
     setSelectedIds([]);
@@ -355,40 +349,42 @@ export function Requests({
         <CardContent className="space-y-2 md:hidden">
           {!loading &&
             rows.map((b) => (
-              <button
-                key={b.id}
-                className="w-full rounded-lg border p-4 text-left"
-                onClick={() => setSelected(b.id)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  {canEdit && (
-                    <span onClick={(event) => event.stopPropagation()}>
-                      <Checkbox
-                        aria-label={`Select ${b.name}`}
-                        checked={selectedIds.includes(b.id)}
-                        onCheckedChange={(checked) =>
-                          setSelectedIds((current) =>
-                            checked
-                              ? [...current, b.id]
-                              : current.filter((id) => id !== b.id),
-                          )
-                        }
-                      />
-                    </span>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{b.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {b.email} · {b.linkTitle}
-                    </p>
+              <div key={b.id} className="flex gap-3 rounded-lg border p-4">
+                {canEdit && (
+                  <div className="pt-0.5">
+                    <Checkbox
+                      aria-label={`Select ${b.name}`}
+                      checked={selectedIds.includes(b.id)}
+                      onCheckedChange={(checked) =>
+                        setSelectedIds((current) =>
+                          checked
+                            ? [...current, b.id]
+                            : current.filter((id) => id !== b.id),
+                        )
+                      }
+                    />
                   </div>
-                  <StatusBadge status={b.status} />
-                </div>
-                <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
-                  <span>{fmt(b.startsAt)}</span>
-                  <ChevronRight className="size-4" />
-                </div>
-              </button>
+                )}
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  onClick={() => setSelected(b.id)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{b.name}</p>
+                      <p className="mt-1 break-words text-xs text-muted-foreground">
+                        {b.email} · {b.linkTitle}
+                      </p>
+                    </div>
+                    <StatusBadge status={b.status} />
+                  </div>
+                  <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                    <span>{fmt(b.startsAt)}</span>
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </div>
+                </button>
+              </div>
             ))}
         </CardContent>
       </Card>
@@ -477,8 +473,7 @@ export function RequestDialog({
         adminNote: String(f.get("note")),
         ...(canAssign
           ? {
-              assignedTo:
-                assignedTo === "unassigned" ? "" : assignedTo,
+              assignedTo: assignedTo === "unassigned" ? "" : assignedTo,
             }
           : {}),
       });
@@ -564,9 +559,7 @@ export function RequestDialog({
                     {canAssign ? (
                       <Select
                         name="assignedTo"
-                        defaultValue={
-                          detail.booking.assignedTo || "unassigned"
-                        }
+                        defaultValue={detail.booking.assignedTo || "unassigned"}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Choose owner" />

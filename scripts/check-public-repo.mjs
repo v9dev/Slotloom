@@ -58,7 +58,16 @@ function allowedDocumentationHost(host) {
 }
 
 function isZeroIdentifier(value) {
-  return value.replaceAll("-", "").split("").every((character) => character === "0");
+  return value
+    .replaceAll("-", "")
+    .split("")
+    .every((character) => character === "0");
+}
+
+function isSkillIntegrityHash(file, text, value) {
+  return (
+    file === "skills-lock.json" && text.includes(`"computedHash": "${value}"`)
+  );
 }
 
 function scan(file, text) {
@@ -102,7 +111,9 @@ function scan(file, text) {
     }
   }
 
-  for (const match of text.matchAll(/(?<![a-f0-9])[a-f0-9]{32}(?![a-f0-9])/gi)) {
+  for (const match of text.matchAll(
+    /(?<![a-f0-9])[a-f0-9]{32}(?![a-f0-9])/gi,
+  )) {
     if (!isZeroIdentifier(match[0]))
       record(file, "32-character account identifier");
   }
@@ -112,13 +123,18 @@ function scan(file, text) {
     if (!isZeroIdentifier(match[0]))
       record(file, "resource or deployment UUID");
   }
-  for (const match of text.matchAll(/(?<![a-f0-9])[a-f0-9]{64}(?![a-f0-9])/gi)) {
-    if (!isZeroIdentifier(match[0])) record(file, "long hexadecimal identifier");
+  for (const match of text.matchAll(
+    /(?<![a-f0-9])[a-f0-9]{64}(?![a-f0-9])/gi,
+  )) {
+    if (
+      !isZeroIdentifier(match[0]) &&
+      !isSkillIntegrityHash(file, text, match[0])
+    )
+      record(file, "long hexadecimal identifier");
   }
   if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(text))
     record(file, "private key");
-  if (/\b0x[A-Za-z0-9_-]{20,}\b/.test(text))
-    record(file, "token-like literal");
+  if (/\b0x[A-Za-z0-9_-]{20,}\b/.test(text)) record(file, "token-like literal");
   if (
     /\b(?:AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[0-9A-Za-z_]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/.test(
       text,
@@ -148,7 +164,10 @@ function currentFiles() {
 }
 
 if (historyMode) {
-  const revisions = git(["rev-list", "--all"]).trim().split("\n").filter(Boolean);
+  const revisions = git(["rev-list", "--all"])
+    .trim()
+    .split("\n")
+    .filter(Boolean);
   for (const revision of revisions) {
     const files = git(["ls-tree", "-r", "--name-only", "-z", revision])
       .split("\0")

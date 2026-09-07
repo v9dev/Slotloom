@@ -134,8 +134,8 @@ import {
   dateAfter,
   dateValue,
   fmt,
+  followAppLink,
   formatDateOnly,
-  go,
   labels,
   localDateTime,
   slugFrom,
@@ -168,7 +168,10 @@ export function Links({ canManage }: { canManage: boolean }) {
         : link.status !== "archived",
   );
   async function copyBookingLink(link: BookingLink) {
-    const url = new URL(`/book/${link.slug}`, window.location.origin).toString();
+    const url = new URL(
+      `/book/${link.slug}`,
+      window.location.origin,
+    ).toString();
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
@@ -187,9 +190,7 @@ export function Links({ canManage }: { canManage: boolean }) {
       toast.success("Booking link copied", { description: url });
       window.setTimeout(
         () =>
-          setCopiedLinkId((current) =>
-            current === link.id ? null : current,
-          ),
+          setCopiedLinkId((current) => (current === link.id ? null : current)),
         2_000,
       );
     } catch {
@@ -305,13 +306,16 @@ export function Links({ canManage }: { canManage: boolean }) {
                     <LinkRemovalActions link={link} changed={load} />
                   </div>
                 )}
-                <Button
-                  variant="ghost"
-                  className="mt-2 w-full"
-                  onClick={() => go(`/admin/requests?link=${link.id}`)}
-                >
-                  View {link.responseCount} responses
-                  <ChevronRight />
+                <Button asChild variant="ghost" className="mt-2 w-full">
+                  <a
+                    href={`/admin/requests?link=${link.id}`}
+                    onClick={(event) =>
+                      followAppLink(event, `/admin/requests?link=${link.id}`)
+                    }
+                  >
+                    View {link.responseCount} responses
+                    <ChevronRight aria-hidden="true" />
+                  </a>
                 </Button>
                 <Button
                   variant="ghost"
@@ -328,7 +332,9 @@ export function Links({ canManage }: { canManage: boolean }) {
       ) : (
         <Card>
           <Empty
-            title={view === "archived" ? "No archived links" : "No booking links yet"}
+            title={
+              view === "archived" ? "No archived links" : "No booking links yet"
+            }
             description={
               view === "archived"
                 ? "Links you archive will appear here."
@@ -438,12 +444,16 @@ export function LinkAnalyticsDialog({
                 </div>
               ))}
             </div>
-            <Button
-              className="w-full"
-              onClick={() => go(`/admin/requests?link=${link.id}`)}
-            >
-              Open filtered response table
-              <ChevronRight />
+            <Button asChild className="w-full">
+              <a
+                href={`/admin/requests?link=${link.id}`}
+                onClick={(event) =>
+                  followAppLink(event, `/admin/requests?link=${link.id}`)
+                }
+              >
+                Open filtered response table
+                <ChevronRight aria-hidden="true" />
+              </a>
             </Button>
           </div>
         ) : (
@@ -516,8 +526,9 @@ export function LinkRemovalActions({
             <AlertDialogHeader>
               <AlertDialogTitle>Archive this booking link?</AlertDialogTitle>
               <AlertDialogDescription>
-                Its public URL will stop accepting responses. Existing responses,
-                emails, feedback, analytics, and activity will remain available.
+                Its public URL will stop accepting responses. Existing
+                responses, emails, feedback, analytics, and activity will remain
+                available.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

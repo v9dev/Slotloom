@@ -31,14 +31,23 @@ export default function App() {
   else page = <NotFound path={path} />;
 
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-          Loading…
-        </main>
-      }
-    >
-      {page}
-    </Suspense>
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <Suspense
+        fallback={
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex min-h-svh items-center justify-center text-sm text-muted-foreground"
+          >
+            Loading…
+          </main>
+        }
+      >
+        {page}
+      </Suspense>
+    </>
   );
 }

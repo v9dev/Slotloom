@@ -42,6 +42,7 @@ import { bookingAdminRoute } from "./booking-admin";
 import { meetingAdminRoute } from "./meeting-admin";
 import { personalIntegrationRoute } from "./personal-integrations";
 import { deliverEmail, emailDeliveryAdminRoute } from "./email-delivery";
+import { bookingAutoReplyAdminRoute } from "./booking-auto-reply";
 export async function adminRoutes(
   request: Request,
   env: Env,
@@ -71,6 +72,13 @@ export async function adminRoutes(
     user,
   );
   if (emailDeliveryResponse) return emailDeliveryResponse;
+  const autoReplyResponse = await bookingAutoReplyAdminRoute(
+    request,
+    env,
+    path,
+    user,
+  );
+  if (autoReplyResponse) return autoReplyResponse;
   const integrationResponse = await integrationAdminRoute(
     request,
     env,

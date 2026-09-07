@@ -120,6 +120,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { BrandLogo } from "@/components/BrandLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { brand, setPageTitle } from "@/brand";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -131,7 +132,7 @@ import { browserTimeZone, TimeZoneSelect } from "@/components/TimeZoneSelect";
 
 import { Notifications } from "./admin/Notifications";
 import { PersonalConnections } from "./admin/PersonalConnections";
-import { go } from "./admin/shared";
+import { followAppLink } from "./admin/shared";
 
 const Overview = lazy(() =>
   import("./admin/Overview").then((module) => ({ default: module.Overview })),
@@ -193,11 +194,22 @@ export default function Admin() {
   const [user, setUser] = useState<WorkspaceUser>();
   const [checking, setChecking] = useState(true);
   const [token, setToken] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const authenticate = () =>
     api
       .me()
-      .then((r) => setUser(r.user))
-      .catch(() => setUser(undefined))
+      .then((r) => {
+        setUser(r.user);
+        setAuthError("");
+      })
+      .catch(() => {
+        setUser(undefined);
+        if (sessionStorage.getItem("adminToken"))
+          setAuthError(
+            "That development token was not accepted. Check the value in .dev.vars and try again.",
+          );
+      })
       .finally(() => setChecking(false));
   useEffect(() => {
     const update = () => setPath(location.pathname);
@@ -220,13 +232,27 @@ export default function Admin() {
   );
   if (checking)
     return (
-      <div className="flex min-h-svh items-center justify-center">
-        <Loader2 className="animate-spin" />
-      </div>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center"
+      >
+        <div
+          role="status"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <Loader2 className="animate-spin" aria-hidden="true" />
+          Checking workspace access…
+        </div>
+      </main>
     );
   if (!user)
     return (
-      <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center bg-muted/40 p-4"
+      >
         <Card className="w-full max-w-sm">
           <CardHeader>
             <CardTitle>Local development</CardTitle>
@@ -239,21 +265,41 @@ export default function Admin() {
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
+                setAuthError("");
                 sessionStorage.setItem("adminToken", token);
                 setChecking(true);
                 authenticate();
               }}
             >
               <div className="space-y-2">
-                <Label>Development token</Label>
+                <Label htmlFor="development-token">Development token</Label>
                 <Input
+                  id="development-token"
+                  name="development-token"
                   type="password"
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
-                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Paste your development token…"
+                  aria-invalid={Boolean(authError)}
+                  aria-describedby={
+                    authError ? "development-token-error" : undefined
+                  }
                 />
               </div>
-              <Button className="w-full">Open workspace</Button>
+              {authError && (
+                <Alert variant="destructive" id="development-token-error">
+                  <AlertDescription>{authError}</AlertDescription>
+                </Alert>
+              )}
+              <Button
+                type="submit"
+                className="h-10 w-full"
+                disabled={!token.trim()}
+              >
+                Open workspace
+              </Button>
             </form>
           </CardContent>
         </Card>
@@ -261,29 +307,42 @@ export default function Admin() {
     );
   const canManageLinks = user.role === "owner" || user.role === "admin";
   const canEditRequests = user.role !== "viewer";
-  const nav = <Nav section={visibleSection} user={user} />;
   return (
     <div className="h-svh overflow-hidden bg-muted/30 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="hidden h-svh overflow-hidden border-r bg-background lg:block">
-        {nav}
+        <Nav section={visibleSection} user={user} />
       </aside>
       <div className="flex h-svh min-w-0 flex-col overflow-hidden">
         <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur lg:justify-end lg:px-6">
-          <Sheet>
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden">
-                <Menu />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                aria-label="Open workspace navigation"
+              >
+                <Menu aria-hidden="true" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
-              {nav}
+              <Nav
+                section={visibleSection}
+                user={user}
+                onNavigate={() => setMobileNavOpen(false)}
+              />
             </SheetContent>
           </Sheet>
           <BrandLogo className="flex-1 lg:hidden" />
+          <ThemeToggle />
           {user.role !== "viewer" && <PersonalConnections />}
           <Notifications />
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
           <Suspense
             fallback={<Loader2 className="mx-auto mt-20 animate-spin" />}
           >
@@ -310,7 +369,15 @@ export default function Admin() {
     </div>
   );
 }
-function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
+function Nav({
+  section,
+  user,
+  onNavigate,
+}: {
+  section: string;
+  user: WorkspaceUser;
+  onNavigate?: () => void;
+}) {
   const items = [
     {
       id: "overview",
@@ -367,18 +434,35 @@ function Nav({ section, user }: { section: string; user: WorkspaceUser }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-3">
       <div className="flex h-12 items-center px-3">
-        <BrandLogo />
+        <a
+          href="/admin"
+          aria-label={`${brand.name} overview`}
+          className="rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          onClick={(event) => {
+            if (followAppLink(event, "/admin")) onNavigate?.();
+          }}
+        >
+          <BrandLogo />
+        </a>
       </div>
       <nav className="mt-3 space-y-1">
         {items.map((item) => (
           <Button
             key={item.id}
+            asChild
             variant={section === item.id ? "secondary" : "ghost"}
             className="w-full justify-start"
-            onClick={() => go(item.path)}
           >
-            <item.icon />
-            {item.label}
+            <a
+              href={item.path}
+              aria-current={section === item.id ? "page" : undefined}
+              onClick={(event) => {
+                if (followAppLink(event, item.path)) onNavigate?.();
+              }}
+            >
+              <item.icon aria-hidden="true" />
+              {item.label}
+            </a>
           </Button>
         ))}
       </nav>

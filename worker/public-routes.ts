@@ -32,6 +32,7 @@ import {
   type WorkspaceUser,
 } from "./domain";
 import { sendAndLog } from "./email-delivery";
+import { sendBookingAutoReply } from "./booking-auto-reply";
 import type { JWTPayload } from "jose";
 import {
   cancelProviderMeeting,
@@ -193,7 +194,7 @@ export async function publicLink(request: Request, env: Env, slug: string) {
   );
   const booking = await getBooking(env, id);
   if (booking)
-    await sendAndLog(env, booking, "received").catch(() => undefined);
+    await sendBookingAutoReply(env, booking).catch(() => undefined);
   return json({ id }, 201);
 }
 

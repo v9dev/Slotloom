@@ -130,16 +130,30 @@ export default function PublicBooking({ slug }: { slug: string }) {
   }
   if (loading)
     return (
-      <main className="flex min-h-svh items-center justify-center">
-        <Loader2 className="size-5 animate-spin" />
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center"
+      >
+        <div
+          role="status"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          Loading availability…
+        </div>
       </main>
     );
   if (!data)
     return (
-      <main className="flex min-h-svh items-center justify-center p-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center p-4"
+      >
         <Card className="max-w-md">
           <CardHeader>
-            <CalendarDays className="mb-4 size-6" />
+            <CalendarDays className="mb-4 size-6" aria-hidden="true" />
             <h1 className="text-xl font-semibold">This link is unavailable</h1>
             <p className="text-sm text-muted-foreground">
               {error || "Ask the organizer for a new link."}
@@ -150,7 +164,11 @@ export default function PublicBooking({ slug }: { slug: string }) {
     );
   const progress = step === "email" ? 1 : step === "slot" ? 2 : 3;
   return (
-    <main className="min-h-svh bg-muted/30 px-4 py-8 sm:py-14">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="min-h-svh bg-muted/30 px-4 py-8 sm:py-14"
+    >
       <div className="mx-auto w-full max-w-5xl">
         <div className="mb-6">
           <BrandLogo />

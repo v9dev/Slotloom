@@ -105,13 +105,27 @@ export default function ManageBooking({ token }: { token: string }) {
   }
   if (loading)
     return (
-      <main className="flex min-h-svh items-center justify-center">
-        <Loader2 className="animate-spin" />
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center"
+      >
+        <div
+          role="status"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <Loader2 className="animate-spin" aria-hidden="true" />
+          Loading booking…
+        </div>
       </main>
     );
   if (error && !booking)
     return (
-      <main className="flex min-h-svh items-center justify-center p-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center p-4"
+      >
         <Alert variant="destructive" className="max-w-md">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -119,11 +133,15 @@ export default function ManageBooking({ token }: { token: string }) {
     );
   if (done)
     return (
-      <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-svh items-center justify-center bg-muted/30 p-4"
+      >
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-              <CheckCircle2 />
+              <CheckCircle2 aria-hidden="true" />
             </span>
             <CardTitle className="pt-3">Slot updated</CardTitle>
             <CardDescription>
@@ -138,7 +156,11 @@ export default function ManageBooking({ token }: { token: string }) {
       </main>
     );
   return (
-    <main className="min-h-svh bg-muted/30 p-4 sm:py-10">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="min-h-svh bg-muted/30 p-4 sm:py-10"
+    >
       <Card className="mx-auto w-full max-w-3xl">
         <CardHeader>
           <BrandLogo className="mb-4 self-start" />

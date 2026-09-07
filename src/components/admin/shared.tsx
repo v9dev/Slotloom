@@ -25,7 +25,14 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  MouseEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { api } from "@/api";
 import type {
   Booking,
@@ -160,6 +167,24 @@ export const go = (path: string) => {
   dispatchEvent(new PopStateEvent("popstate"));
 };
 
+export function followAppLink(
+  event: MouseEvent<HTMLAnchorElement>,
+  path: string,
+) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return false;
+  event.preventDefault();
+  go(path);
+  return true;
+}
+
 export function Shell({
   title,
   description,
@@ -172,7 +197,7 @@ export function Shell({
   children: ReactNode;
 }) {
   return (
-    <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-10">
+    <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-10">
       <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
@@ -181,7 +206,7 @@ export function Shell({
         {action}
       </div>
       {children}
-    </main>
+    </div>
   );
 }
 
@@ -408,8 +433,12 @@ export function Stat({ value, label }: { value: number; label: string }) {
 }
 export function Loading() {
   return (
-    <div className="flex min-h-[70svh] items-center justify-center">
-      <Loader2 className="animate-spin" />
+    <div
+      role="status"
+      className="flex min-h-[70svh] items-center justify-center gap-2 text-sm text-muted-foreground"
+    >
+      <Loader2 className="animate-spin" aria-hidden="true" />
+      Loading…
     </div>
   );
 }
@@ -424,9 +453,7 @@ export function Empty({
     <div className="flex flex-col items-center justify-center py-14 text-center">
       <CircleDashed className="mb-3 size-6 text-muted-foreground" />
       <p className="text-sm font-medium">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {description}
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }

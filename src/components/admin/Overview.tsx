@@ -135,8 +135,8 @@ import {
   dateAfter,
   dateValue,
   fmt,
+  followAppLink,
   formatDateOnly,
-  go,
   labels,
   localDateTime,
   slugFrom,
@@ -180,25 +180,32 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
       description="A clear view of your scheduling workflow."
       action={
         canManageLinks ? (
-          <Button onClick={() => go("/admin/links")}>
-            <Plus />
-            New booking link
+          <Button asChild>
+            <a
+              href="/admin/links"
+              onClick={(event) => followAppLink(event, "/admin/links")}
+            >
+              <Plus aria-hidden="true" />
+              New booking link
+            </a>
           </Button>
         ) : undefined
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {stats.map((s) => (
           <Card key={s.label}>
-            <CardContent className="flex items-center gap-4 p-5">
+            <CardContent className="flex min-w-0 items-center gap-3 p-4 sm:gap-4 sm:p-5">
               <span
-                className={`flex size-10 items-center justify-center rounded-lg ${s.tone}`}
+                className={`flex size-9 shrink-0 items-center justify-center rounded-lg sm:size-10 ${s.tone}`}
               >
-                <s.icon className="size-4" />
+                <s.icon className="size-4" aria-hidden="true" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-2xl font-semibold tabular-nums">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {s.label}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -218,10 +225,13 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
             {data.recent.length ? (
               <div className="divide-y">
                 {data.recent.map((b) => (
-                  <button
+                  <a
+                    href={`/admin/requests?open=${b.id}`}
                     className="flex w-full items-center gap-3 py-3 text-left"
                     key={b.id}
-                    onClick={() => go(`/admin/requests?open=${b.id}`)}
+                    onClick={(event) =>
+                      followAppLink(event, `/admin/requests?open=${b.id}`)
+                    }
                   >
                     <Avatar>
                       <AvatarFallback>
@@ -235,8 +245,11 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
                       </p>
                     </div>
                     <StatusBadge status={b.status} />
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </button>
+                    <ChevronRight
+                      className="size-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </a>
                 ))}
               </div>
             ) : (
@@ -247,13 +260,14 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
             )}
           </CardContent>
           <CardFooter className="justify-center bg-transparent">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => go("/admin/requests")}
-            >
-              View all responses
-              <ChevronRight />
+            <Button asChild variant="outline" size="sm">
+              <a
+                href="/admin/requests"
+                onClick={(event) => followAppLink(event, "/admin/requests")}
+              >
+                View all responses
+                <ChevronRight aria-hidden="true" />
+              </a>
             </Button>
           </CardFooter>
         </Card>

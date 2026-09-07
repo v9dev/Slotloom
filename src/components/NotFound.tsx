@@ -18,14 +18,18 @@ export default function NotFound({ path }: { path: string }) {
   useEffect(() => setPageTitle("Page not found"), []);
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4 sm:p-6">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-svh items-center justify-center bg-muted/30 p-4 sm:p-6"
+    >
       <div className="w-full max-w-lg">
         <BrandLogo className="mb-6 max-w-44" />
         <Card className="overflow-hidden border-border/80 shadow-xl shadow-black/[.04]">
           <CardHeader className="border-b bg-muted/30 pb-6">
             <div className="mb-7 flex items-center justify-between gap-4">
               <span className="flex size-11 items-center justify-center rounded-xl border bg-background text-muted-foreground shadow-sm">
-                <SearchX className="size-5" />
+                <SearchX className="size-5" aria-hidden="true" />
               </span>
               <span className="text-sm font-medium tabular-nums text-muted-foreground">
                 Error 404
@@ -42,7 +46,7 @@ export default function NotFound({ path }: { path: string }) {
           <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <Button asChild size="lg">
               <a href={destination}>
-                <ArrowLeft />
+                <ArrowLeft aria-hidden="true" />
                 {adminPath ? "Return to overview" : "Return home"}
               </a>
             </Button>

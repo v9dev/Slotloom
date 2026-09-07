@@ -135,8 +135,8 @@ import {
   dateAfter,
   dateValue,
   fmt,
+  followAppLink,
   formatDateOnly,
-  go,
   labels,
   localDateTime,
   slugFrom,
@@ -612,13 +612,14 @@ export function Team() {
               <Activity className="size-4" />
               Recent activity
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => go("/admin/activity")}
-            >
-              View all
-              <ChevronRight />
+            <Button asChild variant="ghost" size="sm">
+              <a
+                href="/admin/activity"
+                onClick={(event) => followAppLink(event, "/admin/activity")}
+              >
+                View all
+                <ChevronRight aria-hidden="true" />
+              </a>
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
