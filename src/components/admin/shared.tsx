@@ -388,14 +388,16 @@ export function DateTimeSelect({
 
 export function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  htmlFor?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
+    <div className="min-w-0 space-y-2">
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
   );
