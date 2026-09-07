@@ -24,23 +24,23 @@ const workflow = [
   {
     icon: CalendarCheck,
     step: "01",
-    title: "Publish availability",
+    title: "Publish a booking link",
     description:
-      "Give each meeting type its own schedule, questions, validity window, and timezone.",
+      "Set the schedule, duration, booking window, timezone, and visitor questions for each meeting type.",
   },
   {
     icon: Users,
     step: "02",
-    title: "Review the request",
+    title: "A visitor books",
     description:
-      "Check the attendee, proposed time, title, and collaborators before anything reaches a calendar.",
+      "The visitor chooses an open time, adds any guests, and confirms the meeting details.",
   },
   {
     icon: CheckCircle2,
     step: "03",
-    title: "Create & communicate",
+    title: "The invitation arrives",
     description:
-      "Create the approved event, add Meet or Teams, and send the right transactional email.",
+      "Google or Microsoft creates the event immediately and sends one provider-owned calendar invitation.",
   },
 ];
 
@@ -53,21 +53,21 @@ const capabilities = [
   },
   {
     icon: Sparkles,
-    title: "Human review",
+    title: "Instant confirmation",
     description:
-      "A deliberate checkpoint between a visitor’s response and the event that lands on your calendar.",
+      "The selected slot becomes a confirmed provider event in the same booking flow.",
   },
   {
     icon: Mail,
-    title: "Connected delivery",
+    title: "Provider invitations",
     description:
-      "Optional Gmail, Outlook, or Worker Email delivery for confirmations and follow-up.",
+      "Google Calendar or Outlook sends the meeting link to the visitor and every added attendee.",
   },
   {
     icon: ShieldCheck,
     title: "Workspace control",
     description:
-      "Clear roles, response ownership, activity history, retention controls, and encrypted credentials.",
+      "Clear roles, meeting ownership, activity history, retention controls, and encrypted credentials.",
   },
 ];
 
@@ -105,7 +105,7 @@ function SchedulePreview() {
       />
       <div
         role="img"
-        aria-label="A weekly availability view with open meeting times and one request ready for review"
+        aria-label="A weekly availability view with open meeting times and one confirmed meeting"
         className="overflow-hidden rounded-[1.75rem] border border-foreground/10 bg-background/95 shadow-[0_1px_2px_rgba(15,23,42,.06),0_24px_70px_rgba(15,23,42,.13)] backdrop-blur"
       >
         <div aria-hidden="true">
@@ -174,14 +174,14 @@ function SchedulePreview() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold sm:text-sm">
-                  Priya requested Tuesday at 10:30
+                  Priya booked Tuesday at 10:30
                 </p>
                 <p className="mt-0.5 truncate text-[10px] text-muted-foreground sm:text-xs">
                   Product introduction · 30 minutes
                 </p>
               </div>
               <span className="rounded-md bg-foreground px-2.5 py-1.5 text-[10px] font-semibold text-background sm:text-xs">
-                Review
+                Confirmed
               </span>
             </div>
           </div>
@@ -250,8 +250,8 @@ export default function Home() {
               {brand.tagline}
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-pretty text-muted-foreground sm:text-xl">
-              Share availability, review every response, and create the right
-              calendar event only when your team is ready.
+              Publish a link, let visitors choose an open time, and send a
+              Google Meet or Microsoft Teams invitation immediately.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-11 px-4 sm:min-w-44">
@@ -272,7 +272,7 @@ export default function Home() {
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs text-muted-foreground">
               {[
                 "Self-hosted",
-                "Review before creating",
+                "Instant confirmation",
                 "Google & Microsoft ready",
               ].map((item) => (
                 <span key={item} className="inline-flex items-center gap-2">
@@ -298,16 +298,17 @@ export default function Home() {
           <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
             <div>
               <p className="text-sm font-semibold text-brand-violet">
-                One deliberate workflow
+                One direct workflow
               </p>
               <h2 className="mt-3 text-4xl font-semibold leading-tight tracking-[-0.035em] text-balance sm:text-5xl">
-                Share availability. Keep the final say.
+                From open slot to confirmed meeting.
               </h2>
             </div>
             <p className="max-w-2xl text-base leading-7 text-pretty text-muted-foreground lg:justify-self-end lg:text-lg">
-              Slotloom keeps the useful pause that most schedulers remove: your
-              team reviews the request before committing calendars, attendees,
-              or provider automation.
+              Slotloom validates the time, creates the provider event, and
+              returns the joining link in one booking flow. Your team can then
+              handle reminders, time changes, and cancellations from the
+              workspace.
             </p>
           </div>
 
@@ -436,8 +437,8 @@ export default function Home() {
             Make every meeting earn its place.
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-7 text-pretty text-muted-foreground">
-            Open your protected workspace to manage availability, responses,
-            meetings, integrations, and your team.
+            Open your protected workspace to manage availability, booked
+            meetings, follow-up, integrations, and your team.
           </p>
           <Button asChild size="lg" className="mt-8 h-11 px-4">
             <a href="/login">

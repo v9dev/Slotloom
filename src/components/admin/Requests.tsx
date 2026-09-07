@@ -97,7 +97,7 @@ export function Requests({
       assignedTo:
         canAssign && bulkAssignee !== "unchanged" ? bulkAssignee : undefined,
     });
-    toast.success(`${update.updated} responses updated`);
+    toast.success(`${update.updated} meetings updated`);
     setSelectedIds([]);
     const refreshed = await api.bookings({
       page,
@@ -118,7 +118,7 @@ export function Requests({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `responses-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `meetings-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
     toast.success("CSV export downloaded");
@@ -128,11 +128,11 @@ export function Requests({
   return (
     <Shell
       title={
-        selectedLink ? `${selectedLink.internalName} responses` : "Responses"
+        selectedLink ? `${selectedLink.internalName} meetings` : "Meetings"
       }
       description={
         selectedLink
-          ? "Responses submitted through this booking link."
+          ? "Meetings booked through this booking link."
           : "Manage booked meetings, coordinate changes, and track outcomes."
       }
       action={
@@ -153,7 +153,7 @@ export function Requests({
               onValueChange={(value) => setBulkStatus(value as WorkflowStatus)}
             >
               <SelectTrigger
-                aria-label="Set status for selected responses"
+                aria-label="Set status for selected meetings"
                 className="w-full bg-background sm:w-48"
               >
                 <SelectValue />
@@ -169,7 +169,7 @@ export function Requests({
             {canAssign && (
               <Select value={bulkAssignee} onValueChange={setBulkAssignee}>
                 <SelectTrigger
-                  aria-label="Assign selected responses"
+                  aria-label="Assign selected meetings"
                   className="w-full bg-background sm:w-56"
                 >
                   <SelectValue />
@@ -203,10 +203,10 @@ export function Requests({
               className="absolute left-3 top-2.5 size-4 text-muted-foreground"
             />
             <Input
-              aria-label="Search responses by name or email"
+              aria-label="Search meetings by name or email"
               autoComplete="off"
               className="pl-9"
-              name="response-search"
+              name="meeting-search"
               placeholder="Search by name or email…"
               value={query}
               onChange={(e) => {
@@ -223,7 +223,7 @@ export function Requests({
             }}
           >
             <SelectTrigger
-              aria-label="Filter responses by status"
+              aria-label="Filter meetings by status"
               className="w-full sm:w-48"
             >
               <SelectValue />
@@ -245,7 +245,7 @@ export function Requests({
             }}
           >
             <SelectTrigger
-              aria-label="Filter responses by booking link"
+              aria-label="Filter meetings by booking link"
               className="w-full sm:w-52"
             >
               <SelectValue placeholder="All booking links" />
@@ -318,7 +318,7 @@ export function Requests({
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
-                        aria-label={`Open request from ${b.name}`}
+                        aria-label={`Open meeting with ${b.name}`}
                         onClick={() => setSelected(b.id)}
                         size="icon"
                         type="button"
@@ -383,7 +383,7 @@ export function Requests({
           <p className="text-xs text-muted-foreground">
             Showing {(pagination.page - 1) * pagination.pageSize + 1}–
             {Math.min(pagination.page * pagination.pageSize, pagination.total)}{" "}
-            of {pagination.total} responses
+            of {pagination.total} meetings
           </p>
           <Pagination className="mx-0 w-auto">
             <PaginationContent>

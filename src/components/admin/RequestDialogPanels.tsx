@@ -161,7 +161,7 @@ export function RequestEmailsPanel({ detail }: { detail: BookingDetail }) {
           ))
         ) : (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No emails have been sent for this request.
+            No follow-up emails have been sent for this meeting.
           </div>
         )}
       </div>
@@ -192,7 +192,7 @@ export function RequestActivityPanel({ detail }: { detail: BookingDetail }) {
         </div>
       ) : (
         <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No activity has been recorded for this request.
+          No activity has been recorded for this meeting.
         </div>
       )}
     </TabsContent>

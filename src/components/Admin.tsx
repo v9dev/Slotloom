@@ -170,7 +170,7 @@ const Team = lazy(() =>
 const adminSections = {
   overview: "Overview",
   links: "Booking links",
-  requests: "Responses",
+  requests: "Meetings",
   activity: "Activity",
   emails: "Email templates",
   integrations: "Calendar and email integrations",
@@ -388,7 +388,7 @@ function Nav({
     { id: "links", label: "Booking links", icon: Link2, path: "/admin/links" },
     {
       id: "requests",
-      label: "Responses",
+      label: "Meetings",
       icon: Users,
       path: "/admin/requests",
     },

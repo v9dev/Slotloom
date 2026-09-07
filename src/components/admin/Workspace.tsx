@@ -397,7 +397,7 @@ export function WorkspaceSettings() {
             </span>
             <CardTitle className="pt-3">Data retention</CardTitle>
             <CardDescription>
-              Choose how long completed, cancelled, and missed response data
+              Choose how long completed, cancelled, and missed meeting data
               should be retained.
             </CardDescription>
           </CardHeader>
@@ -524,7 +524,7 @@ export function Team() {
   return (
     <Shell
       title="Team & roles"
-      description="Manage workspace permissions and response ownership."
+      description="Manage workspace permissions and meeting ownership."
     >
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card>

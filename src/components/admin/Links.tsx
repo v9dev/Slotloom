@@ -290,8 +290,8 @@ export function Links({ canManage }: { canManage: boolean }) {
                     : "No fixed date range"}
                 </div>
                 <div className="mt-5 grid grid-cols-3 border-t pt-4 text-center">
-                  <Stat value={link.responseCount} label="Responses" />
-                  <Stat value={link.pendingCount} label="Pending" />
+                  <Stat value={link.responseCount} label="Bookings" />
+                  <Stat value={link.pendingCount} label="Needs action" />
                   <Stat value={link.confirmedCount} label="Confirmed" />
                 </div>
                 {canManage && (
@@ -313,7 +313,7 @@ export function Links({ canManage }: { canManage: boolean }) {
                       followAppLink(event, `/admin/requests?link=${link.id}`)
                     }
                   >
-                    View {link.responseCount} responses
+                    View {link.responseCount} meetings
                     <ChevronRight aria-hidden="true" />
                   </a>
                 </Button>
@@ -338,7 +338,7 @@ export function Links({ canManage }: { canManage: boolean }) {
             description={
               view === "archived"
                 ? "Links you archive will appear here."
-                : "Create a booking link to start collecting availability."
+                : "Create a booking link to start accepting meetings."
             }
           />
         </Card>
@@ -390,7 +390,7 @@ export function LinkAnalyticsDialog({
                 tone="blue"
               />
               <MetricMini
-                label="Responses"
+                label="Bookings"
                 value={data.summary.responses}
                 tone="violet"
               />
@@ -403,7 +403,7 @@ export function LinkAnalyticsDialog({
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  Responses over 30 days
+                  Bookings over 30 days
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -421,7 +421,7 @@ export function LinkAnalyticsDialog({
                     ))
                   ) : (
                     <div className="m-auto text-sm text-muted-foreground">
-                      No responses in this period.
+                      No bookings in this period.
                     </div>
                   )}
                 </div>
@@ -451,7 +451,7 @@ export function LinkAnalyticsDialog({
                   followAppLink(event, `/admin/requests?link=${link.id}`)
                 }
               >
-                Open filtered response table
+                Open filtered meeting table
                 <ChevronRight aria-hidden="true" />
               </a>
             </Button>
@@ -526,9 +526,8 @@ export function LinkRemovalActions({
             <AlertDialogHeader>
               <AlertDialogTitle>Archive this booking link?</AlertDialogTitle>
               <AlertDialogDescription>
-                Its public URL will stop accepting responses. Existing
-                responses, emails, feedback, analytics, and activity will remain
-                available.
+                Its public URL will stop accepting bookings. Existing meetings,
+                emails, feedback, analytics, and activity will remain available.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -558,7 +557,7 @@ export function LinkRemovalActions({
             <AlertDialogTitle>Permanently delete this link?</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes the link and all {link.responseCount}{" "}
-              connected responses, email history, feedback, analytics, and
+              connected meetings, email history, feedback, analytics, and
               activity. This action cannot be undone. Archive the link instead
               if you need to retain its history.
             </AlertDialogDescription>

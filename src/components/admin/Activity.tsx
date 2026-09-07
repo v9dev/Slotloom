@@ -207,7 +207,7 @@ export function ActivityLog() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
-              <SelectItem value="booking">Responses</SelectItem>
+              <SelectItem value="booking">Meetings</SelectItem>
               <SelectItem value="bookings">Bulk operations</SelectItem>
               <SelectItem value="link">Booking links</SelectItem>
               <SelectItem value="email">Email</SelectItem>
@@ -296,7 +296,9 @@ export function ActivityLog() {
                 </div>
                 <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                   <span className="truncate">{item.actor_email}</span>
-                  <span className="shrink-0 tabular-nums">{fmt(item.created_at)}</span>
+                  <span className="shrink-0 tabular-nums">
+                    {fmt(item.created_at)}
+                  </span>
                 </div>
               </button>
             ))}

@@ -164,7 +164,7 @@ export function RequestDialog({
           setError(
             cause instanceof Error
               ? cause.message
-              : "Could not load this request. Try again.",
+              : "Could not load this meeting. Try again.",
           );
       })
       .finally(() => {
@@ -229,12 +229,12 @@ export function RequestDialog({
           : {}),
       });
       adoptDetail({ ...currentDetail, booking: result.booking });
-      toast.success("Request changes saved");
+      toast.success("Meeting changes saved");
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
-          : "Could not save the request. Try again.",
+          : "Could not save the meeting. Try again.",
       );
       try {
         const latest = await api.booking(bookingId);
@@ -263,7 +263,7 @@ export function RequestDialog({
         adoptDetail(await api.booking(bookingId));
       } catch {
         setError(
-          "The action completed, but the latest details could not be refreshed. Close and reopen this request.",
+          "The action completed, but the latest details could not be refreshed. Close and reopen this meeting.",
         );
       }
       toast.success(
@@ -318,7 +318,7 @@ export function RequestDialog({
                 <div className="flex min-w-0 items-center gap-2">
                   <DialogTitle className="truncate text-lg leading-tight">
                     {booking?.name ||
-                      (loading ? "Loading request…" : "Request unavailable")}
+                      (loading ? "Loading meeting…" : "Meeting unavailable")}
                   </DialogTitle>
                   {booking && (
                     <div className="hidden shrink-0 sm:block">
@@ -333,14 +333,14 @@ export function RequestDialog({
                         {booking.email}
                       </span>
                       <span aria-hidden="true">·</span>
-                      <span>{booking.linkTitle || "Booking request"}</span>
+                      <span>{booking.linkTitle || "Meeting"}</span>
                       <span aria-hidden="true">·</span>
                       <span>{fmt(booking.startsAt)}</span>
                     </>
                   ) : loading ? (
                     "Loading visitor and meeting details…"
                   ) : (
-                    "The request details could not be loaded."
+                    "The meeting details could not be loaded."
                   )}
                 </DialogDescription>
                 {booking && (
@@ -358,13 +358,13 @@ export function RequestDialog({
               role="status"
             >
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              Loading request…
+              Loading meeting…
             </div>
           ) : !currentDetail || !draft ? (
             <div className="space-y-4 overflow-y-auto p-4 sm:p-6">
               <Alert variant="destructive" role="alert">
                 <AlertDescription>
-                  {error || "Could not load this request. Try again."}
+                  {error || "Could not load this meeting. Try again."}
                 </AlertDescription>
               </Alert>
               <div className="flex flex-wrap gap-2">
@@ -408,7 +408,7 @@ export function RequestDialog({
                           className="text-sm font-semibold"
                           id="request-details-heading"
                         >
-                          Request details
+                          Meeting details
                         </h3>
                         <p className="text-xs text-muted-foreground">
                           Updated {fmt(currentDetail.booking.updatedAt)}
@@ -635,7 +635,7 @@ export function RequestDialog({
                         <div className="border-t bg-background/70 p-3 sm:p-4">
                           {currentDetail.booking.status === "cancelled" ? (
                             <p className="text-sm text-muted-foreground">
-                              This request is closed. Change its status and save
+                              This meeting is closed. Change its status and save
                               to reopen it.
                             </p>
                           ) : (
@@ -722,7 +722,7 @@ export function RequestDialog({
                                   className="mt-3 text-xs text-muted-foreground"
                                   role="status"
                                 >
-                                  Save your request changes before using meeting
+                                  Save your changes before using meeting
                                   actions.
                                 </p>
                               )}
@@ -762,10 +762,10 @@ export function RequestDialog({
                     aria-live="polite"
                   >
                     {pendingAction === "save"
-                      ? "Saving request…"
+                      ? "Saving meeting…"
                       : isDirty
                         ? "You have unsaved changes."
-                        : "All request changes are saved."}
+                        : "All meeting changes are saved."}
                   </p>
                   <div className="grid grid-cols-2 gap-2 sm:flex">
                     <Button
@@ -801,7 +801,7 @@ export function RequestDialog({
                   adoptDetail(await api.booking(bookingId));
                 } catch {
                   setError(
-                    "The meeting was created, but the request could not be refreshed. Close and reopen it to see the latest details.",
+                    "The meeting was created, but its details could not be refreshed. Close and reopen it to see the latest information.",
                   );
                 }
               }}
@@ -827,7 +827,9 @@ export function RequestDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep request</AlertDialogCancel>
+            <AlertDialogCancel>
+              {booking?.meetingSentAt ? "Keep meeting" : "Keep request"}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => send("cancelled", "cancel")}

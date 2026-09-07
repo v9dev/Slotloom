@@ -51,7 +51,7 @@ function unavailableBookingCopy(message: string) {
       label: "Link expired",
       title: "This booking window has closed",
       description:
-        "The organizer is no longer accepting responses through this link. Ask them to share a current booking link.",
+        "The organizer is no longer accepting bookings through this link. Ask them to share a current booking link.",
       canRetry: false,
     };
 

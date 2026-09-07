@@ -59,7 +59,7 @@ export default function Login() {
                 Keep the calendar intentional.
               </p>
               <p className="mt-4 max-w-sm text-sm leading-6 text-pretty text-background/68">
-                Review booking requests, coordinate your team, and connect
+                Manage booked meetings, coordinate changes, and connect
                 providers from one controlled workspace.
               </p>
 

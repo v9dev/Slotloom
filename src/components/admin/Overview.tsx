@@ -156,13 +156,13 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
       tone: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
     },
     {
-      label: "Responses",
+      label: "Meetings",
       value: data.stats.total_responses,
       icon: Users,
       tone: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
     },
     {
-      label: "Pending",
+      label: "Needs action",
       value: data.stats.pending,
       icon: Clock3,
       tone: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
@@ -215,9 +215,9 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Recent responses</CardTitle>
+              <CardTitle>Recent meetings</CardTitle>
               <CardDescription>
-                Latest people who shared availability.
+                Latest people who booked through your links.
               </CardDescription>
             </div>
           </CardHeader>
@@ -254,8 +254,8 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
               </div>
             ) : (
               <Empty
-                title="No responses yet"
-                description="New responses will appear here."
+                title="No meetings yet"
+                description="New bookings will appear here."
               />
             )}
           </CardContent>
@@ -265,7 +265,7 @@ export function Overview({ canManageLinks }: { canManageLinks: boolean }) {
                 href="/admin/requests"
                 onClick={(event) => followAppLink(event, "/admin/requests")}
               >
-                View all responses
+                View all meetings
                 <ChevronRight aria-hidden="true" />
               </a>
             </Button>
