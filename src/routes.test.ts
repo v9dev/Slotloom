@@ -33,6 +33,17 @@ describe("resolveAppRoute", () => {
     expect(resolveAppRoute(path)).toEqual({ kind: "legal", document });
   });
 
+  it.each([
+    ["/cookies", "cookies"],
+    ["/cookies/", "cookies"],
+    ["/accessibility", "accessibility"],
+    ["/accessibility/", "accessibility"],
+    ["/support", "support"],
+    ["/support/", "support"],
+  ] as const)("resolves %s as a public information page", (path, document) => {
+    expect(resolveAppRoute(path)).toEqual({ kind: "info", document });
+  });
+
   it("decodes booking and management path segments", () => {
     expect(resolveAppRoute("/book/design%20review/")).toEqual({
       kind: "booking",

@@ -14,6 +14,7 @@ import { api } from "@/api";
 import type { BookingLink, Slot } from "@/types";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PublicFooter } from "@/components/PublicFooter";
+import { PublicPageBackdrop } from "@/components/PublicPageBackdrop";
 import {
   AttendeeEditor,
   attendeeDraftError,
@@ -192,10 +193,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
         tabIndex={-1}
         className="relative flex min-h-svh items-center justify-center overflow-hidden bg-muted/30 px-4 py-10 sm:px-6"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,color-mix(in_oklch,var(--border)_55%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklch,var(--border)_55%,transparent)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_74%)]"
-        />
+        <PublicPageBackdrop />
         <div className="relative w-full max-w-lg">
           <a
             href="/"

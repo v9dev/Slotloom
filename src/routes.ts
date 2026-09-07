@@ -13,6 +13,7 @@ export type AppRoute =
   | { kind: "login" }
   | { kind: "admin" }
   | { kind: "legal"; document: "privacy" | "terms" }
+  | { kind: "info"; document: "cookies" | "accessibility" | "support" }
   | { kind: "booking"; slug: string }
   | { kind: "manage"; token: string }
   | { kind: "not-found" };
@@ -36,6 +37,10 @@ export function resolveAppRoute(pathname: string): AppRoute {
   if (path === "/login") return { kind: "login" };
   if (path === "/privacy") return { kind: "legal", document: "privacy" };
   if (path === "/terms") return { kind: "legal", document: "terms" };
+  if (path === "/cookies") return { kind: "info", document: "cookies" };
+  if (path === "/accessibility")
+    return { kind: "info", document: "accessibility" };
+  if (path === "/support") return { kind: "info", document: "support" };
 
   const admin = path.match(/^\/admin(?:\/([^/]+))?$/);
   if (admin && (!admin[1] || adminSections.has(admin[1])))

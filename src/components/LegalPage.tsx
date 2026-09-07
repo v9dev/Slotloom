@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import { brand, setPageTitle } from "@/brand";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PublicFooter } from "@/components/PublicFooter";
+import { PublicPageBackdrop } from "@/components/PublicPageBackdrop";
 import { Button } from "@/components/ui/button";
 
 const effectiveDate = "August 6, 2026";
@@ -90,7 +91,7 @@ function PrivacyPolicy() {
             rel="noreferrer"
           >
             Google API Services User Data Policy
-            <ExternalLink className="ml-1 inline size-3" />
+            <ExternalLink className="ml-1 inline size-3" aria-hidden="true" />
           </a>
           .
         </p>
@@ -149,6 +150,17 @@ function PrivacyPolicy() {
           Cloudflare Turnstile can process security signals when enabled, and
           the browser can remember a light or dark theme preference. Slotloom
           does not use advertising cookies.
+        </p>
+        <p>
+          The dedicated{" "}
+          <a
+            className="font-medium text-foreground underline underline-offset-4"
+            href="/cookies"
+          >
+            Cookie & storage notice
+          </a>{" "}
+          explains each browser-storage purpose, typical duration, and available
+          controls.
         </p>
       </Section>
 
@@ -223,7 +235,7 @@ function PrivacyPolicy() {
             rel="noreferrer"
           >
             Slotloom security policy
-            <ExternalLink className="ml-1 inline size-3" />
+            <ExternalLink className="ml-1 inline size-3" aria-hidden="true" />
           </a>
           .
         </p>
@@ -381,13 +393,20 @@ export default function LegalPage({
     <main
       id="main-content"
       tabIndex={-1}
-      className="min-h-svh bg-muted/30 px-4 py-8 sm:px-6 sm:py-12"
+      className="relative min-h-svh overflow-hidden bg-muted/30 px-4 py-8 sm:px-6 sm:py-12"
     >
-      <div className="mx-auto max-w-3xl">
+      <PublicPageBackdrop />
+      <div className="relative mx-auto max-w-3xl">
         <header className="mb-8 rounded-2xl border bg-background p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <BrandLogo className="max-w-44" />
-            <Button asChild variant="outline" size="sm">
+            <a
+              href="/"
+              aria-label={`${brand.name} home`}
+              className="rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <BrandLogo className="max-w-44" />
+            </a>
+            <Button asChild variant="outline" className="min-h-11 px-4">
               <a href="/">
                 <ArrowLeft aria-hidden="true" />
                 Home
@@ -395,7 +414,7 @@ export default function LegalPage({
             </Button>
           </div>
           <div className="mt-10 max-w-2xl">
-            <span className="mb-4 flex size-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300">
+            <span className="mb-4 flex size-11 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue">
               <ShieldCheck className="size-5" aria-hidden="true" />
             </span>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
