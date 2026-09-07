@@ -169,13 +169,14 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
             </span>
             <CardTitle className="pt-3">Meeting automation defaults</CardTitle>
             <CardDescription>
-              The response handler chooses a provider for each meeting. This is
-              the initial suggestion in the Create meeting dialog.
+              New public bookings are confirmed immediately with this provider.
+              Keep its organizer calendar connected so visitors receive the
+              invitation and join link.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="flex-1">
-              <Field label="Suggested meeting provider">
+              <Field label="Default booking provider">
                 <Select
                   value={defaultProvider}
                   onValueChange={(value) =>
@@ -187,7 +188,9 @@ export function Integrations({ user }: { user: WorkspaceUser }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="manual">Manual meeting link</SelectItem>
+                    <SelectItem value="manual">
+                      Not automated (public booking unavailable)
+                    </SelectItem>
                     <SelectItem value="google">Google Meet</SelectItem>
                     <SelectItem value="microsoft">Microsoft Teams</SelectItem>
                   </SelectContent>

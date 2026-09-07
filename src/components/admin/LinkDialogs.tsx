@@ -532,7 +532,7 @@ export function CreateLinkDialog({
               <div>
                 <p className="text-sm font-medium">Visitor meeting title</p>
                 <p className="text-xs text-muted-foreground">
-                  Let the visitor suggest a meeting title for organizer review.
+                  Let the visitor choose the title used on the calendar event.
                 </p>
               </div>
               <Switch
@@ -545,8 +545,8 @@ export function CreateLinkDialog({
               <div>
                 <p className="text-sm font-medium">Additional attendees</p>
                 <p className="text-xs text-muted-foreground">
-                  Let the visitor suggest up to nine additional attendees.
-                  Invitations are sent only after organizer approval.
+                  Let the visitor add up to nine people to the calendar
+                  invitation.
                 </p>
               </div>
               <Switch
@@ -618,9 +618,9 @@ export function CreateLinkDialog({
             <Alert>
               <ShieldCheck />
               <AlertDescription>
-                Double-booking protection is automatic. Once one visitor submits
-                a slot, it is removed from the public link and the database
-                rejects any simultaneous duplicate request.
+                Booking is immediate. Slotloom creates the provider event, sends
+                its calendar invitation, removes the time from the public link,
+                and rejects simultaneous duplicate bookings.
               </AlertDescription>
             </Alert>
           </div>
@@ -776,7 +776,7 @@ export function LinkSettingsDialog({
                 <div>
                   <p className="text-sm font-medium">Public link active</p>
                   <p className="text-xs text-muted-foreground">
-                    Visitors can view and submit availability.
+                    Visitors can view availability and book meetings instantly.
                   </p>
                 </div>
                 <Switch
@@ -904,8 +904,8 @@ export function LinkSettingsDialog({
                 <div>
                   <p className="text-sm font-medium">Visitor meeting title</p>
                   <p className="text-xs text-muted-foreground">
-                    Allow a suggested title that the organizer reviews before
-                    creating the meeting.
+                    Allow visitors to choose the title used on the calendar
+                    event.
                   </p>
                 </div>
                 <Switch
@@ -918,7 +918,7 @@ export function LinkSettingsDialog({
                 <div>
                   <p className="text-sm font-medium">Additional attendees</p>
                   <p className="text-xs text-muted-foreground">
-                    Allow up to nine additional attendee suggestions.
+                    Allow up to nine additional calendar invitees.
                   </p>
                 </div>
                 <Switch

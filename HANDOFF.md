@@ -191,21 +191,25 @@ calendar, policy, or license does not support Teams online meetings.
 
 ## Organizer selection and meeting lifecycle
 
-- The workspace default is only the initial suggestion. The response handler
-  chooses Google Meet, Microsoft Teams, or a manual HTTPS link in **Create
-  meeting**.
-- Owners and admins can choose any active organizer. A member can create or
-  claim an unassigned meeting only for themselves and cannot take a response
-  assigned to someone else.
-- Slotloom first uses the selected organizer's active provider connection. If
-  that person is not connected and the owner enabled calendar fallback, it uses
-  an active owner connection and shows that fallback before creation.
-- The organizer reviews the meeting title, final time, and attendee list before
-  creation. Booking links can optionally let visitors suggest a title and up to
-  nine additional attendees.
+- Public booking requires Google Meet or Microsoft Teams as the workspace
+  default. Active booking pages report a setup state until an eligible provider
+  connection is available; manual links remain available for legacy admin
+  recovery.
+- A visitor selects an open time and Slotloom immediately creates the provider
+  event, confirms the booking, and assigns it to the link organizer. There is no
+  separate availability-receipt email or organizer approval step.
+- Slotloom first uses the link organizer's active provider connection. If that
+  person is not connected and the owner enabled calendar fallback, it uses an
+  active owner connection.
+- Booking links can optionally let visitors choose the calendar event title and
+  add up to nine attendees. Those values are used immediately when the event is
+  created.
 - Google or Microsoft sends the single provider-managed invitation. Slotloom
-  does not send a second confirmation for that event, and every reviewed
-  attendee is included.
+  does not send a second confirmation for that event, and every attendee is
+  included.
+- The request dialog exposes the current provider account and join link. Admins
+  can send a reminder, ask for another time, or cancel the meeting. Legacy or
+  interrupted records without a completed event retain the manual setup action.
 - Time changes update the same provider event. Cancellation removes that event.
 - Google or Microsoft sends the native calendar invitation, so Slotloom does not
   attach a duplicate ICS file for provider-managed meetings. Manual links retain
@@ -213,10 +217,10 @@ calendar, policy, or license does not support Teams online meetings.
 
 ## Transactional email routing
 
-- Availability receipts, reminders, follow-ups, and manual meeting details first
-  use the assigned organizer's personal mailbox. A user can choose Google,
-  Microsoft, or Automatic; Automatic uses the only connected mail-capable
-  account when there is exactly one.
+- Reminders, follow-ups, and manual meeting details first use the assigned
+  organizer's personal mailbox. A user can choose Google, Microsoft, or
+  Automatic; Automatic uses the only connected mail-capable account when there
+  is exactly one.
 - If the organizer has no usable personal mailbox, Slotloom uses the workspace
   fallback selected by the owner. That fallback can be disabled, use Worker
   Email, or use an owner Google or Microsoft connection.
@@ -242,6 +246,12 @@ calendar, policy, or license does not support Teams online meetings.
 - Past times, occupied times, and dates without any open slots are omitted from
   public and rescheduling pages. The Worker rechecks availability during
   submission to protect against simultaneous bookings.
+- Slotloom retries transient provider creation with the same idempotency key. If
+  creation still fails before Slotloom records an external event, it releases
+  the slot and reports that no meeting was booked. If the provider created the
+  event while its join link is still propagating, Slotloom keeps one confirmed
+  booking and reports that the link is syncing so retries cannot duplicate the
+  invitation.
 
 Provider client IDs and tenant IDs are non-secret and are visible in the owner
 UI. Provider client secrets are write-only. No Google or Microsoft credentials

@@ -133,7 +133,7 @@ export function Requests({
       description={
         selectedLink
           ? "Responses submitted through this booking link."
-          : "Review availability, confirm meetings, and track outcomes."
+          : "Manage booked meetings, coordinate changes, and track outcomes."
       }
       action={
         <Button variant="outline" onClick={exportCsv}>

@@ -2,11 +2,6 @@ export const emailPresentation: Record<
   string,
   { label: string; heading: string; actionLabel?: string }
 > = {
-  received: {
-    label: "Availability received",
-    heading: "Thanks, we have your preferred time",
-    actionLabel: "Review availability",
-  },
   meeting_details: {
     label: "Meeting confirmed",
     heading: "Your meeting is ready",

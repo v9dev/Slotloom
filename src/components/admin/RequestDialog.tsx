@@ -1,4 +1,11 @@
-import { CalendarDays, Clock3, Loader2, Mail } from "lucide-react";
+import {
+  CalendarDays,
+  Clock3,
+  ExternalLink,
+  Loader2,
+  Mail,
+  Video,
+} from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/api";
@@ -79,6 +86,20 @@ function visitorInitials(name: string) {
         .join("")
         .toUpperCase()
     : "?";
+}
+
+function meetingProviderLabel(booking: Booking) {
+  if (booking.meetingProvider === "google") return "Google Meet";
+  if (booking.meetingProvider === "microsoft") return "Microsoft Teams";
+  return "Online meeting";
+}
+
+function meetingLinkHost(value: string) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "Secure meeting link";
+  }
 }
 
 export function RequestDialog({
@@ -557,15 +578,50 @@ export function RequestDialog({
                             </div>
                             {currentDetail.booking.meetingUrl && (
                               <a
-                                className="mt-3 block max-w-full truncate text-sm font-medium underline underline-offset-4 hover:text-primary"
+                                className="mt-3 flex min-h-11 max-w-full items-center gap-3 rounded-xl border bg-background px-3 py-2 text-left transition-colors hover:border-foreground/20 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                                 href={currentDetail.booking.meetingUrl}
                                 rel="noreferrer"
                                 target="_blank"
                                 title={currentDetail.booking.meetingUrl}
                               >
-                                {currentDetail.booking.meetingUrl}
+                                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                  <Video
+                                    className="size-4"
+                                    aria-hidden="true"
+                                  />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-medium">
+                                    Open{" "}
+                                    {meetingProviderLabel(
+                                      currentDetail.booking,
+                                    )}
+                                  </span>
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {currentDetail.booking
+                                      .meetingProviderAccount
+                                      ? `${currentDetail.booking.meetingProviderAccount} · `
+                                      : ""}
+                                    {meetingLinkHost(
+                                      currentDetail.booking.meetingUrl,
+                                    )}
+                                  </span>
+                                </span>
+                                <ExternalLink
+                                  className="size-4 shrink-0 text-muted-foreground"
+                                  aria-hidden="true"
+                                />
                               </a>
                             )}
+                            {currentDetail.booking.meetingSentAt &&
+                              currentDetail.booking.meetingProviderEventId &&
+                              !currentDetail.booking.meetingUrl && (
+                                <p className="mt-3 rounded-lg border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">
+                                  {meetingProviderLabel(currentDetail.booking)}{" "}
+                                  is still syncing the join link. The calendar
+                                  invitation has already been created.
+                                </p>
+                              )}
                             {currentDetail.booking.meetingNotes && (
                               <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
                                 {currentDetail.booking.meetingNotes}

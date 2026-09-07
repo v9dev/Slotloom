@@ -176,7 +176,6 @@ export const LINK_STATUSES = new Set<LinkStatus>([
   "archived",
 ]);
 export const EMAIL_TEMPLATES = new Set([
-  "received",
   "meeting_details",
   "rescheduled_confirmation",
   "reminder",
@@ -697,10 +696,6 @@ export function emailContent(
     string,
     { subject: string; intro: string; action?: string }
   > = {
-    received: {
-      subject: `We received your availability: ${time}`,
-      intro: `We received your availability for ${time}. This is not yet a confirmed meeting; we’ll follow up shortly.`,
-    },
     meeting_details: {
       subject: `Your meeting is confirmed: ${meetingTitle}`,
       intro: `${meetingTitle} is confirmed for ${time}.`,
@@ -730,7 +725,7 @@ export function emailContent(
       intro: `Our meeting planned for ${time} has been cancelled.`,
     },
   };
-  const selected = messages[template] || messages.received;
+  const selected = messages[template] || messages.meeting_details;
   const contact = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
   const actionHtml =
     booking.meeting_url &&
@@ -834,7 +829,7 @@ export async function renderEmailHtml(
   manageUrl?: string,
   meetingTime?: string,
   calendarAttached = false,
-  template = "received",
+  template = "meeting_details",
   meetingTitle?: string,
   workspaceBrand?: WorkspaceBrand,
 ) {
@@ -912,7 +907,7 @@ export async function configuredEmailContent(
         ),
       ),
       template,
-      template !== "received" ? variables.meeting_title : undefined,
+      variables.meeting_title,
       workspaceBrand,
     ),
   };

@@ -41,10 +41,11 @@ function PrivacyPolicy() {
           timezone, and may provide a phone number, company, message, meeting
           title, feedback, or rescheduling choice. When a booking link enables
           it, a visitor can also suggest additional attendees by name and email
-          address. The organizer reviews those suggestions before creating the
-          meeting. The workspace also stores meeting status, organizer notes,
+          address. Submitting an available time creates the provider calendar
+          event and sends its invitation to the visitor and additional
+          attendees. The workspace also stores meeting status, organizer notes,
           joining details, email delivery records, and activity required to
-          coordinate the request.
+          coordinate the booking.
         </p>
         <p>
           For security and basic service analytics, the application can process
@@ -258,10 +259,9 @@ function TermsOfService() {
       <Section title="The service">
         <p>
           Slotloom is open-source scheduling software used to publish
-          availability, collect meeting requests, coordinate responses, create
-          online meetings, and send related communications. A submitted time is
-          not a confirmed meeting unless the application or organizer expressly
-          confirms it.
+          availability, book online meetings, coordinate changes, and send
+          related communications. A booking is confirmed only after the
+          application reports that the provider calendar event was created.
         </p>
       </Section>
 

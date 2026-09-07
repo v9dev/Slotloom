@@ -42,7 +42,6 @@ import { bookingAdminRoute } from "./booking-admin";
 import { meetingAdminRoute } from "./meeting-admin";
 import { personalIntegrationRoute } from "./personal-integrations";
 import { deliverEmail, emailDeliveryAdminRoute } from "./email-delivery";
-import { bookingAutoReplyAdminRoute } from "./booking-auto-reply";
 export async function adminRoutes(
   request: Request,
   env: Env,
@@ -72,13 +71,6 @@ export async function adminRoutes(
     user,
   );
   if (emailDeliveryResponse) return emailDeliveryResponse;
-  const autoReplyResponse = await bookingAutoReplyAdminRoute(
-    request,
-    env,
-    path,
-    user,
-  );
-  if (autoReplyResponse) return autoReplyResponse;
   const integrationResponse = await integrationAdminRoute(
     request,
     env,
@@ -816,12 +808,15 @@ export async function adminRoutes(
       booking.assigned_to &&
       booking.assigned_to.toLowerCase() !== user.email.toLowerCase()
     )
-      return json({ error: "This request is assigned to another organizer." }, 403);
+      return json(
+        { error: "This request is assigned to another organizer." },
+        403,
+      );
     const now = new Date().toISOString();
     await env.DB.batch([
-      env.DB.prepare(
-        "DELETE FROM booking_attendees WHERE booking_id=?",
-      ).bind(id),
+      env.DB.prepare("DELETE FROM booking_attendees WHERE booking_id=?").bind(
+        id,
+      ),
       env.DB.prepare(
         `UPDATE bookings SET name='Deleted visitor',email=?,phone=NULL,company=NULL,message=NULL,
          device_type=NULL,user_agent=NULL,browser_language=NULL,referrer=NULL,country=NULL,region=NULL,city=NULL,

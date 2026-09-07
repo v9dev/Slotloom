@@ -131,12 +131,7 @@ export async function deliverEmail(
   if (!selected) {
     if (
       preferredProvider &&
-      (await oauthMailAvailable(
-        env,
-        preferredProvider,
-        organizerEmail,
-        true,
-      ))
+      (await oauthMailAvailable(env, preferredProvider, organizerEmail, true))
     ) {
       try {
         return {
@@ -279,12 +274,7 @@ async function sendRecipientAndLog(
         replyTo: meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL),
         ...content,
         attachments: meetingTemplates.has(template)
-          ? meetingAttachment(
-              booking,
-              env,
-              workspaceBrand.name,
-              attendees,
-            )
+          ? meetingAttachment(booking, env, workspaceBrand.name, attendees)
           : undefined,
       },
       undefined,
@@ -413,7 +403,7 @@ async function testEmail(env: Env, recipient: string) {
         undefined,
         undefined,
         false,
-        "received",
+        "meeting_details",
         undefined,
         workspaceBrand,
       ),

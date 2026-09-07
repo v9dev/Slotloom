@@ -234,8 +234,8 @@ describe("emailContent", () => {
   it("renders the React email template to complete HTML", async () => {
     const html = await renderEmailHtml(
       env as never,
-      "Availability received",
-      "Hello Taylor.\n\nWe will follow up shortly.",
+      "Meeting confirmed",
+      "Hello Taylor.\n\nYour meeting is ready.",
       "owner@example.com",
       undefined,
       "https://meet.example.com/manage/example",
@@ -243,7 +243,7 @@ describe("emailContent", () => {
     );
 
     expect(html).toContain("<!DOCTYPE html");
-    expect(html).toContain("Thanks, we have your preferred time");
+    expect(html).toContain("Your meeting is ready");
     expect(html).toContain("Scheduling, without the overhead.");
     expect(html.replaceAll("<!-- -->", "")).toContain(
       "© 2026 Slotloom. Scheduling, without the overhead.",

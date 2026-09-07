@@ -1,5 +1,4 @@
 import {
-  EMAIL_TEMPLATES,
   LINK_STATUSES,
   WORKFLOW_STATUSES,
   authorizeAdmin,
@@ -32,17 +31,86 @@ import {
   type WorkspaceUser,
 } from "./domain";
 import { sendAndLog } from "./email-delivery";
-import { sendBookingAutoReply } from "./booking-auto-reply";
 import type { JWTPayload } from "jose";
 import {
   cancelProviderMeeting,
+  ensureProviderMeeting,
   syncProviderMeeting,
+  type CalendarProvider,
 } from "./calendar-integrations";
+import { connectionForMeeting } from "./calendar-connection-selection";
+import { IntegrationError } from "./calendar-errors";
 import {
   AttendeeInputError,
   attendeeInsertStatements,
   parseAdditionalAttendees,
 } from "./meeting-attendees";
+
+const providerName = (provider: CalendarProvider) =>
+  provider === "google" ? "Google Meet" : "Microsoft Teams";
+
+async function instantBookingConfiguration(env: Env, link: LinkRow) {
+  const setting = await env.DB.prepare(
+    "SELECT setting_value FROM workspace_settings WHERE setting_key='calendar_provider'",
+  ).first<{ setting_value: string }>();
+  const provider = setting?.setting_value;
+  if (provider !== "google" && provider !== "microsoft")
+    throw new IntegrationError(
+      "Automatic meeting creation is not configured for this booking page.",
+      503,
+    );
+  const organizer = link.created_by || env.BOOTSTRAP_OWNER_EMAIL;
+  if (!organizer)
+    throw new IntegrationError(
+      "This booking page does not have an available organizer.",
+      503,
+    );
+  const selected = await connectionForMeeting(env, provider, organizer);
+  if (!selected.connection)
+    throw new IntegrationError(
+      "The organizer's calendar connection is temporarily unavailable.",
+      503,
+    );
+  return { organizer, provider: provider as CalendarProvider };
+}
+
+async function recordInstantBooking(
+  env: Env,
+  booking: BookingRow,
+  link: LinkRow,
+  provider: CalendarProvider,
+) {
+  const results = await Promise.allSettled([
+    recordActivity(env, {
+      bookingId: booking.id,
+      linkId: link.id,
+      type: "booking.confirmed",
+      summary: `${booking.name} booked ${booking.meeting_title || link.title}`,
+      metadata: {
+        provider,
+        providerAccount: booking.meeting_provider_account || null,
+      },
+    }),
+    createNotification(
+      env,
+      booking.assigned_to,
+      "booking.confirmed",
+      "Meeting booked",
+      `${booking.name} booked ${formatMeetingTime(booking.starts_at, link.time_zone)} with ${providerName(provider)} through ${link.internal_name}.`,
+      `/admin/requests?open=${booking.id}`,
+    ),
+  ]);
+  results.forEach((result, index) => {
+    if (result.status === "rejected")
+      console.warn("Instant booking follow-up failed", {
+        bookingId: booking.id,
+        operation: index === 0 ? "activity" : "notification",
+        reason:
+          result.reason instanceof Error ? result.reason.message : "unknown",
+      });
+  });
+}
+
 export async function publicLink(request: Request, env: Env, slug: string) {
   const link = await getLink(env, slug, true);
   if (!link || link.status !== "active")
@@ -57,6 +125,14 @@ export async function publicLink(request: Request, env: Env, slug: string) {
   const localDate = `${linkToday.year}-${linkToday.month}-${linkToday.day}`;
   if (link.valid_until && localDate > link.valid_until)
     return json({ error: "This booking link has expired." }, 410);
+  let instantBooking: Awaited<ReturnType<typeof instantBookingConfiguration>>;
+  try {
+    instantBooking = await instantBookingConfiguration(env, link);
+  } catch (error) {
+    if (error instanceof IntegrationError)
+      return json({ error: error.message }, error.status);
+    throw error;
+  }
   const rules = await getRules(env, link.id);
   const occupied = await env.DB.prepare(
     "SELECT starts_at FROM bookings WHERE booking_link_id = ? AND workflow_status != 'cancelled'",
@@ -79,6 +155,7 @@ export async function publicLink(request: Request, env: Env, slug: string) {
       .run();
     return json({
       link: normalizeLink(link, rules),
+      meetingProvider: instantBooking.provider,
       turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : null,
       slots: slotsForSchedule(link, rules)
         .filter((slot) => !unavailable.has(slot.startsAt))
@@ -134,6 +211,11 @@ export async function publicLink(request: Request, env: Env, slug: string) {
     );
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  const session = env.DB.withSession("first-primary");
+  const bookingEnv = {
+    ...env,
+    DB: session as unknown as D1Database,
+  } satisfies Env;
   const userAgent = safeText(request.headers.get("user-agent"), 500);
   const cf = request.cf as
     | (IncomingRequestCfProperties & {
@@ -143,10 +225,10 @@ export async function publicLink(request: Request, env: Env, slug: string) {
       })
     | undefined;
   try {
-    await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO bookings (id, booking_link_id, name, email, phone, company, starts_at, time_zone, message, workflow_status, meeting_title, device_type, user_agent, browser_language, referrer, country, region, city, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    await bookingEnv.DB.batch([
+      bookingEnv.DB.prepare(
+        `INSERT INTO bookings (id, booking_link_id, name, email, phone, company, starts_at, final_starts_at, time_zone, message, workflow_status, meeting_title, meeting_provider_preference, assigned_to, device_type, user_agent, browser_language, referrer, country, region, city, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         link.id,
@@ -155,9 +237,12 @@ export async function publicLink(request: Request, env: Env, slug: string) {
         phone || null,
         null,
         startsAt,
+        startsAt,
         timeZone,
         null,
-        meetingTitle || null,
+        meetingTitle || link.title,
+        instantBooking.provider,
+        instantBooking.organizer,
         deviceType(userAgent),
         userAgent || null,
         safeText(request.headers.get("accept-language"), 120) || null,
@@ -168,34 +253,80 @@ export async function publicLink(request: Request, env: Env, slug: string) {
         now,
         now,
       ),
-      ...attendeeInsertStatements(env, id, attendees, "visitor", now),
+      ...attendeeInsertStatements(bookingEnv, id, attendees, "visitor", now),
     ]);
   } catch (error) {
     if (String(error).includes("UNIQUE"))
       return json(
-        { error: "Someone just requested that time. Please choose another." },
+        { error: "Someone just booked that time. Please choose another." },
         409,
       );
     throw error;
   }
-  await recordActivity(env, {
-    bookingId: id,
-    linkId: link.id,
-    type: "booking.created",
-    summary: `${name} submitted availability`,
-  });
-  await createNotification(
-    env,
-    link.created_by || env.BOOTSTRAP_OWNER_EMAIL,
-    "booking.created",
-    "New availability response",
-    `${name} selected ${formatMeetingTime(startsAt, link.time_zone)} through ${link.internal_name}.`,
-    `/admin/requests?open=${id}`,
+  let booking = await getBooking(bookingEnv, id);
+  if (!booking) {
+    await bookingEnv.DB.prepare("DELETE FROM bookings WHERE id=?")
+      .bind(id)
+      .run();
+    return json({ error: "The meeting could not be prepared." }, 500);
+  }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      booking = await ensureProviderMeeting(bookingEnv, booking);
+      break;
+    } catch (error) {
+      const latest = await getBooking(bookingEnv, id);
+      const retryable =
+        !(error instanceof IntegrationError) || error.status >= 500;
+      if (attempt === 0 && (retryable || latest?.meeting_provider_event_id)) {
+        booking = latest || booking;
+        continue;
+      }
+      if (latest?.meeting_provider_event_id) {
+        booking = latest;
+        break;
+      }
+      await bookingEnv.DB.prepare("DELETE FROM bookings WHERE id=?")
+        .bind(id)
+        .run();
+      console.warn("Instant meeting creation failed", {
+        bookingId: id,
+        provider: instantBooking.provider,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return json(
+        {
+          error:
+            "The organizer's calendar is temporarily unavailable. No meeting was booked; please try again later.",
+        },
+        503,
+      );
+    }
+  }
+  const confirmedAt = new Date().toISOString();
+  await bookingEnv.DB.prepare(
+    "UPDATE bookings SET workflow_status='confirmed',meeting_sent_at=?,updated_at=? WHERE id=?",
+  )
+    .bind(confirmedAt, confirmedAt, id)
+    .run();
+  booking = (await getBooking(bookingEnv, id))!;
+  await recordInstantBooking(
+    bookingEnv,
+    booking,
+    link,
+    instantBooking.provider,
   );
-  const booking = await getBooking(env, id);
-  if (booking)
-    await sendBookingAutoReply(env, booking).catch(() => undefined);
-  return json({ id }, 201);
+  return json(
+    {
+      id,
+      status: "confirmed",
+      startsAt: booking.final_starts_at || booking.starts_at,
+      meetingUrl: booking.meeting_url,
+      meetingProvider: instantBooking.provider,
+      meetingLinkPending: !booking.meeting_url,
+    },
+    201,
+  );
 }
 
 export async function parseLinkInput(request: Request) {

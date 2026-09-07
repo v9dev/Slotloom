@@ -204,10 +204,6 @@ export type EmailTemplate = {
   updated_by: string | null;
   updated_at: string;
 };
-export type BookingAutoReplySettings = {
-  enabled: boolean;
-  templateKey: string;
-};
 export type Notification = {
   id: string;
   type: string;

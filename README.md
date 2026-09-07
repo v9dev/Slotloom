@@ -25,7 +25,8 @@
 </div>
 
 Slotloom is a self-hosted, white-label platform for publishing availability,
-collecting preferred meeting times, and managing follow-up from one workspace.
+booking provider-managed meetings, and coordinating follow-up from one
+workspace.
 It runs without a traditional server: Pages serves the React app, while Workers,
 D1, R2, and Durable Objects power the backend.
 
@@ -35,10 +36,11 @@ D1, R2, and Durable Objects power the backend.
 - Double-booking protection with secure rescheduling and cancellation links
 - Owner, admin, member, and viewer roles protected by Cloudflare Access
 - Runtime white-label branding, including logos, colors, favicon, and email identity
-- Email templates, calendar invitations, follow-ups, feedback, and audit history
+- Instant Google Meet or Teams booking with one provider-owned invitation
+- Email templates, reminders, follow-ups, feedback, and audit history
 - Google Meet, Teams, Gmail, and Outlook automation with per-organizer OAuth
 - Personal mailbox delivery with an owner-controlled workspace fallback
-- Reviewed meeting titles and up to nine additional attendees per response
+- Visitor-selected meeting titles and up to nine additional invitees per booking
 - Real-time dashboard notifications and optional Turnstile bot protection
 
 ## Stack

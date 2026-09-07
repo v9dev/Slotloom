@@ -9,7 +9,6 @@ import type {
   WorkspaceUser,
   WorkflowStatus,
   EmailTemplate,
-  BookingAutoReplySettings,
   Notification,
   LinkAnalytics,
   MeetingFeedback,
@@ -73,6 +72,7 @@ export const api = {
     request<{
       link: BookingLink;
       slots: Slot[];
+      meetingProvider: CalendarProvider;
       turnstileSiteKey: string | null;
     }>(`/api/public/links/${encodeURIComponent(slug)}`),
   createBooking: (
@@ -88,7 +88,14 @@ export const api = {
       attendees?: Array<Pick<MeetingAttendee, "name" | "email">>;
     },
   ) =>
-    request<{ id: string }>(`/api/public/links/${encodeURIComponent(slug)}`, {
+    request<{
+      id: string;
+      status: "confirmed";
+      startsAt: string;
+      meetingUrl: string | null;
+      meetingProvider: CalendarProvider;
+      meetingLinkPending: boolean;
+    }>(`/api/public/links/${encodeURIComponent(slug)}`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -259,16 +266,6 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
-  bookingAutoReply: () =>
-    request<BookingAutoReplySettings>("/api/admin/booking-auto-reply"),
-  updateBookingAutoReply: (payload: BookingAutoReplySettings) =>
-    request<BookingAutoReplySettings & { success: boolean }>(
-      "/api/admin/booking-auto-reply",
-      {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      },
-    ),
   notifications: () =>
     request<{ notifications: Notification[] }>("/api/admin/notifications"),
   readNotifications: () =>

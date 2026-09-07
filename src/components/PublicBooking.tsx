@@ -4,14 +4,16 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  ExternalLink,
   Globe2,
   Loader2,
   Mail,
   Phone,
+  Video,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api";
-import type { BookingLink, Slot } from "@/types";
+import type { BookingLink, CalendarProvider, Slot } from "@/types";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PublicFooter } from "@/components/PublicFooter";
 import { PublicPageBackdrop } from "@/components/PublicPageBackdrop";
@@ -35,6 +37,12 @@ import { Label } from "@/components/ui/label";
 
 type Step = "email" | "slot" | "phone" | "success";
 
+function providerCopy(provider: CalendarProvider) {
+  return provider === "google"
+    ? { meeting: "Google Meet", calendar: "Google Calendar" }
+    : { meeting: "Microsoft Teams", calendar: "Microsoft Outlook" };
+}
+
 function unavailableBookingCopy(message: string) {
   const normalized = message.toLowerCase();
 
@@ -47,7 +55,12 @@ function unavailableBookingCopy(message: string) {
       canRetry: false,
     };
 
-  if (normalized.includes("security configuration"))
+  if (
+    normalized.includes("security configuration") ||
+    normalized.includes("automatic meeting creation") ||
+    normalized.includes("calendar connection") ||
+    normalized.includes("available organizer")
+  )
     return {
       label: "Setup required",
       title: "Booking is temporarily unavailable",
@@ -78,8 +91,11 @@ export default function PublicBooking({ slug }: { slug: string }) {
   const [data, setData] = useState<{
     link: BookingLink;
     slots: Slot[];
+    meetingProvider: CalendarProvider;
     turnstileSiteKey: string | null;
   }>();
+  const [bookingResult, setBookingResult] =
+    useState<Awaited<ReturnType<typeof api.createBooking>>>();
   const [step, setStep] = useState<Step>("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -139,7 +155,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
     setSending(true);
     setError("");
     try {
-      await api.createBooking(slug, {
+      const result = await api.createBooking(slug, {
         name,
         email,
         phone,
@@ -156,15 +172,14 @@ export default function PublicBooking({ slug }: { slug: string }) {
             }))
           : undefined,
       });
+      setBookingResult(result);
       setStep("success");
     } catch (e) {
       if (data?.turnstileSiteKey) {
         setTurnstileToken("");
         setTurnstileAttempt((current) => current + 1);
       }
-      setError(
-        e instanceof Error ? e.message : "Could not send your availability.",
-      );
+      setError(e instanceof Error ? e.message : "Could not book the meeting.");
     } finally {
       setSending(false);
     }
@@ -212,7 +227,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   {unavailable.label}
                 </span>
               </div>
-              <h1 className="mt-8 max-w-md text-3xl font-semibold tracking-tight sm:text-4xl">
+              <h1 className="mt-8 max-w-md text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
                 {unavailable.title}
               </h1>
               <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
@@ -249,6 +264,14 @@ export default function PublicBooking({ slug }: { slug: string }) {
     );
   }
   const progress = step === "email" ? 1 : step === "slot" ? 2 : 3;
+  const provider = providerCopy(data.meetingProvider);
+  const confirmedTime = selected
+    ? new Intl.DateTimeFormat("en", {
+        dateStyle: "full",
+        timeStyle: "short",
+        timeZone: visitorTimeZone,
+      }).format(new Date(selected))
+    : "your selected time";
   return (
     <main
       id="main-content"
@@ -263,9 +286,9 @@ export default function PublicBooking({ slug }: { slug: string }) {
         <div className="grid overflow-hidden rounded-2xl border bg-background shadow-xl shadow-black/[.04] md:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="border-b bg-muted/30 p-6 md:border-r md:border-b-0 md:p-8">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Book your slot
+              Book a meeting
             </p>
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+            <h1 className="mt-4 text-balance text-2xl font-semibold tracking-tight">
               {data.link.title}
             </h1>
             {data.link.description && (
@@ -275,12 +298,25 @@ export default function PublicBooking({ slug }: { slug: string }) {
             )}
             <div className="mt-8 space-y-3 text-sm">
               <p className="flex items-center gap-3">
-                <Clock3 className="size-4 text-muted-foreground" />
+                <Clock3
+                  className="size-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 {data.link.durationMinutes} minutes
               </p>
               <p className="flex items-center gap-3">
-                <Globe2 className="size-4 text-muted-foreground" />
+                <Globe2
+                  className="size-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 {data.link.timeZone.replaceAll("_", " ")}
+              </p>
+              <p className="flex items-center gap-3">
+                <Video
+                  className="size-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                {provider.meeting} · instant confirmation
               </p>
             </div>
             <div className="mt-10 flex gap-2">
@@ -299,21 +335,20 @@ export default function PublicBooking({ slug }: { slug: string }) {
             {step === "email" && (
               <form className="mx-auto max-w-md space-y-7" onSubmit={emailNext}>
                 <div>
-                  <Mail className="mb-5 size-6" />
-                  <h2 className="text-2xl font-semibold tracking-tight">
+                  <Mail className="mb-5 size-6" aria-hidden="true" />
+                  <h2 className="text-balance text-2xl font-semibold tracking-tight">
                     Tell us about you
                   </h2>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    We’ll send the meeting update here.
+                    Your calendar invitation and meeting link will be sent here.
                   </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Full name</Label>
                   <Input
                     id="name"
-                    autoFocus
                     autoComplete="name"
-                    placeholder="Your name"
+                    name="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -324,7 +359,8 @@ export default function PublicBooking({ slug }: { slug: string }) {
                     id="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="you@example.com"
+                    name="email"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -340,41 +376,46 @@ export default function PublicBooking({ slug }: { slug: string }) {
                     <Input
                       id="meeting-title"
                       maxLength={140}
-                      placeholder={data.link.title}
+                      name="meetingTitle"
                       value={meetingTitle}
                       onChange={(event) => setMeetingTitle(event.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      This is a suggestion. The organizer can review it before
-                      creating the meeting.
+                      This title will appear on the calendar invitation.
                     </p>
                   </div>
                 )}
                 {data.link.allowAdditionalAttendees && (
                   <AttendeeEditor
                     attendees={attendees}
+                    description={`They will receive the ${provider.calendar} invitation when you book.`}
                     onChange={setAttendees}
                   />
                 )}
                 {error && (
-                  <Alert variant="destructive">
+                  <Alert variant="destructive" role="alert">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
-                <Button className="w-full justify-between" size="lg">
-                  Continue
-                  <ArrowRight />
+                <Button
+                  className="w-full justify-between"
+                  size="lg"
+                  type="submit"
+                >
+                  Choose a time
+                  <ArrowRight aria-hidden="true" />
                 </Button>
               </form>
             )}
             {step === "slot" && (
               <div className="space-y-7">
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight">
+                  <h2 className="text-balance text-2xl font-semibold tracking-tight">
                     Choose a time
                   </h2>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Select a convenient time in your timezone.
+                    Select a convenient time in your timezone. It will be booked
+                    immediately.
                   </p>
                 </div>
                 <div className="max-w-sm space-y-2">
@@ -432,7 +473,10 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   </>
                 ) : (
                   <div className="rounded-xl border border-dashed p-8 text-center">
-                    <CalendarDays className="mx-auto size-5 text-muted-foreground" />
+                    <CalendarDays
+                      className="mx-auto size-5 text-muted-foreground"
+                      aria-hidden="true"
+                    />
                     <p className="mt-3 text-sm font-medium">
                       No times are available in this date range
                     </p>
@@ -442,18 +486,18 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   </div>
                 )}
                 {error && (
-                  <Alert variant="destructive">
+                  <Alert variant="destructive" role="alert">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
                 <div className="flex justify-between">
                   <Button variant="ghost" onClick={() => setStep("email")}>
-                    <ArrowLeft />
+                    <ArrowLeft aria-hidden="true" />
                     Back
                   </Button>
                   <Button disabled={!selected} onClick={() => setStep("phone")}>
-                    Continue
-                    <ArrowRight />
+                    Review booking
+                    <ArrowRight aria-hidden="true" />
                   </Button>
                 </div>
               </div>
@@ -461,9 +505,9 @@ export default function PublicBooking({ slug }: { slug: string }) {
             {step === "phone" && (
               <form className="mx-auto max-w-md space-y-7" onSubmit={submit}>
                 <div>
-                  <Phone className="mb-5 size-6" />
-                  <h2 className="text-2xl font-semibold tracking-tight">
-                    Add a phone number
+                  <Phone className="mb-5 size-6" aria-hidden="true" />
+                  <h2 className="text-balance text-2xl font-semibold tracking-tight">
+                    Almost done
                   </h2>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Optional. Useful only if there is a last-minute issue.
@@ -479,9 +523,9 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   <Input
                     id="phone"
                     type="tel"
-                    autoFocus
                     autoComplete="tel"
-                    placeholder="+1 555 000 0000"
+                    inputMode="tel"
+                    name="phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                   />
@@ -494,7 +538,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
                   />
                 )}
                 {error && (
-                  <Alert variant="destructive">
+                  <Alert variant="destructive" role="alert">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
@@ -508,7 +552,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
                       setStep("slot");
                     }}
                   >
-                    <ArrowLeft />
+                    <ArrowLeft aria-hidden="true" />
                     Back
                   </Button>
                   <Button
@@ -516,25 +560,63 @@ export default function PublicBooking({ slug }: { slug: string }) {
                       sending ||
                       Boolean(data.turnstileSiteKey && !turnstileToken)
                     }
+                    type="submit"
                   >
-                    {sending ? <Loader2 className="animate-spin" /> : <Check />}
-                    Submit slot
+                    {sending ? (
+                      <Loader2 className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Check aria-hidden="true" />
+                    )}
+                    {sending ? "Booking…" : "Book meeting"}
                   </Button>
                 </div>
               </form>
             )}
             {step === "success" && (
-              <div className="mx-auto flex max-w-md flex-col items-center py-10 text-center">
+              <div
+                className="mx-auto flex max-w-md flex-col items-center py-8 text-center sm:py-10"
+                aria-live="polite"
+              >
                 <span className="mb-6 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <Check />
+                  <Check aria-hidden="true" />
                 </span>
-                <h2 className="text-2xl font-semibold tracking-tight">
-                  Slot submitted
+                <h2 className="text-balance text-2xl font-semibold tracking-tight">
+                  Meeting booked
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  This is not a confirmed meeting yet. The organizer will review
-                  your time and email the final details.
+                  Your {provider.meeting} meeting is confirmed for{" "}
+                  {confirmedTime}.
                 </p>
+                <div className="mt-6 w-full rounded-xl border bg-muted/25 p-4 text-left">
+                  <div className="flex items-start gap-3">
+                    <Mail
+                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Invitation sent</p>
+                      <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
+                        {provider.calendar} is sending the invitation to {email}
+                        .
+                        {bookingResult?.meetingLinkPending
+                          ? " The join link is still syncing and will appear in the calendar event shortly."
+                          : " It includes the join link and full meeting details."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                {bookingResult?.meetingUrl && (
+                  <Button asChild className="mt-5 min-h-11 w-full" size="lg">
+                    <a
+                      href={bookingResult.meetingUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open {provider.meeting}
+                      <ExternalLink aria-hidden="true" />
+                    </a>
+                  </Button>
+                )}
               </div>
             )}
           </section>

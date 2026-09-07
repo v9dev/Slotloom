@@ -118,7 +118,6 @@ import { render } from "react-email";
 import { SlotloomEmail } from "@/emails/SlotloomEmail";
 import { presentationFor } from "@/emails/presentation";
 import { useTheme } from "next-themes";
-import { BookingAutoReply } from "./BookingAutoReply";
 
 import {
   DateSelect,
@@ -184,7 +183,6 @@ export function EmailTemplates({ canManage }: { canManage: boolean }) {
       "meeting_details",
       "rescheduled_confirmation",
       "reminder",
-      "received",
       "reschedule",
     ].includes(editing.template_key);
     const presentation = presentationFor(editing.template_key);
@@ -204,11 +202,7 @@ export function EmailTemplates({ canManage }: { canManage: boolean }) {
           actionUrl={hasAction ? "#" : undefined}
           actionLabel={presentation.actionLabel}
           meetingTime="{{time}}"
-          meetingTitle={
-            editing.template_key !== "received"
-              ? "{{meeting_title}}"
-              : undefined
-          }
+          meetingTitle="{{meeting_title}}"
           calendarAttached={[
             "meeting_details",
             "rescheduled_confirmation",
@@ -269,12 +263,6 @@ export function EmailTemplates({ canManage }: { canManage: boolean }) {
       title="Email templates"
       description="Control the messages visitors receive throughout the meeting workflow."
     >
-      <BookingAutoReply
-        canManage={canManage}
-        templates={templates}
-        templatesLoading={templatesLoading}
-        templatesError={templatesError}
-      />
       {templatesLoading ? (
         <div
           role="status"
@@ -384,7 +372,7 @@ export function EmailTemplates({ canManage }: { canManage: boolean }) {
               <DialogTitle>Edit {editing?.name}</DialogTitle>
               <DialogDescription>
                 Available variables:{" "}
-                {`{{name}} ${editing?.template_key !== "received" ? "{{meeting_title}} " : ""}{{time}} {{contact}} {{meeting_url}} {{manage_url}} {{app_name}}`}
+                {`{{name}} {{meeting_title}} {{time}} {{contact}} {{meeting_url}} {{manage_url}} {{app_name}}`}
               </DialogDescription>
             </DialogHeader>
             {editing && (
