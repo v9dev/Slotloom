@@ -64,7 +64,7 @@ describe("PublicBooking confirmation", () => {
         validUntil: null,
         status: "active",
         allowSlotHolds: false,
-        allowCustomMeetingTitle: false,
+        allowCustomMeetingTitle: true,
         allowAdditionalAttendees: false,
         createdBy: "owner@example.com",
         createdAt: "2026-09-01T00:00:00.000Z",
@@ -96,6 +96,15 @@ describe("PublicBooking confirmation", () => {
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "taylor@example.com" },
     });
+    expect(screen.getByText(/Calendar title:/).textContent).toContain(
+      "Product interview — Taylor Visitor",
+    );
+    fireEvent.change(screen.getByLabelText(/Meeting topic/), {
+      target: { value: "Frontend role" },
+    });
+    expect(screen.getByText(/Calendar title:/).textContent).toContain(
+      "Product interview: Frontend role — Taylor Visitor",
+    );
     fireEvent.click(screen.getByRole("button", { name: /Choose a time/ }));
 
     await screen.findByRole("heading", { name: "Choose a time" });
@@ -123,6 +132,7 @@ describe("PublicBooking confirmation", () => {
       expect.objectContaining({
         name: "Taylor Visitor",
         email: "taylor@example.com",
+        meetingTitle: "Frontend role",
         startsAt,
       }),
     );

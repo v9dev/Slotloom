@@ -171,8 +171,7 @@ async function createMeeting(
       "A different provider event already exists for this request.",
       409,
     );
-  const title = safeText(input.title, 140);
-  if (!title) throw new IntegrationError("Enter a meeting title.");
+  const title = safeText(input.title, 140) || booking.link_title || "Meeting";
   const finalStartsAt = safeText(input.finalStartsAt, 40);
   const meetingDate = new Date(finalStartsAt);
   if (!finalStartsAt || Number.isNaN(meetingDate.getTime()))

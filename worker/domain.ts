@@ -3,6 +3,7 @@ import { render } from "react-email";
 import { createElement } from "react";
 import { SlotloomEmail } from "../src/emails/SlotloomEmail";
 import { presentationFor } from "../src/emails/presentation";
+import { calendarEventParts } from "./calendar-event-presentation";
 
 const DEFAULT_APP_NAME = "Slotloom";
 const DEFAULT_TAGLINE = "Scheduling, without the overhead.";
@@ -785,7 +786,7 @@ export function calendarInvite(
     start.getTime() + (booking.duration_minutes || 30) * 60_000,
   );
   const organizer = meetingOwner(booking, env.BOOTSTRAP_OWNER_EMAIL);
-  const title = booking.meeting_title || booking.link_title || "Meeting";
+  const title = calendarEventParts(booking).title;
   const description = booking.meeting_url
     ? `Join the meeting: ${booking.meeting_url}`
     : `Meeting arranged through ${appName}`;

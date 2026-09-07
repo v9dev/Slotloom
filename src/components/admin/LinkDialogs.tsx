@@ -530,15 +530,15 @@ export function CreateLinkDialog({
             </Field>
             <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
               <div>
-                <p className="text-sm font-medium">Visitor meeting title</p>
+                <p className="text-sm font-medium">Visitor meeting topic</p>
                 <p className="text-xs text-muted-foreground">
-                  Let the visitor choose the title used on the calendar event.
+                  Let the visitor add a topic after the booking-link title.
                 </p>
               </div>
               <Switch
                 checked={allowCustomMeetingTitle}
                 onCheckedChange={setAllowCustomMeetingTitle}
-                aria-label="Allow visitor meeting title"
+                aria-label="Allow visitor meeting topic"
               />
             </div>
             <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
@@ -603,7 +603,7 @@ export function CreateLinkDialog({
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {allowCustomMeetingTitle && (
-                  <Badge variant="secondary">Visitor meeting title</Badge>
+                  <Badge variant="secondary">Visitor meeting topic</Badge>
                 )}
                 {allowAdditionalAttendees && (
                   <Badge variant="secondary">Additional attendees</Badge>
@@ -902,16 +902,16 @@ export function LinkSettingsDialog({
               </Field>
               <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">
                 <div>
-                  <p className="text-sm font-medium">Visitor meeting title</p>
+                  <p className="text-sm font-medium">Visitor meeting topic</p>
                   <p className="text-xs text-muted-foreground">
-                    Allow visitors to choose the title used on the calendar
+                    Add their topic after the booking-link title on the calendar
                     event.
                   </p>
                 </div>
                 <Switch
                   checked={allowCustomMeetingTitle}
                   onCheckedChange={setAllowCustomMeetingTitle}
-                  aria-label="Allow visitor meeting title"
+                  aria-label="Allow visitor meeting topic"
                 />
               </div>
               <div className="flex items-center justify-between gap-4 rounded-xl border p-4 sm:col-span-2">

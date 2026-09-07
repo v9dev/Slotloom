@@ -1,4 +1,8 @@
-import type { BookingRow } from "./domain";
+import type { BookingRow, WorkspaceBrand } from "./domain";
+import {
+  calendarEventDescriptionHtml,
+  calendarEventParts,
+} from "./calendar-event-presentation";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -39,21 +43,20 @@ function meetingTimes(booking: BookingRow) {
   return { start, end };
 }
 
-function meetingDescription(booking: BookingRow) {
-  return ["Scheduled with Slotloom.", booking.meeting_notes || ""]
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 export function googleEventBody(
   booking: BookingRow,
   create: boolean,
   attendees = [{ name: booking.name, email: booking.email }],
+  workspaceBrand?: WorkspaceBrand,
 ) {
   const { start, end } = meetingTimes(booking);
   return {
-    summary: booking.meeting_title || booking.link_title || "Meeting",
-    description: meetingDescription(booking),
+    summary: calendarEventParts(booking).title,
+    description: calendarEventDescriptionHtml(
+      booking,
+      attendees,
+      workspaceBrand,
+    ),
     start: { dateTime: start.toISOString(), timeZone: "UTC" },
     end: { dateTime: end.toISOString(), timeZone: "UTC" },
     ...(create
@@ -76,12 +79,16 @@ export function microsoftEventBody(
   booking: BookingRow,
   create: boolean,
   attendees = [{ name: booking.name, email: booking.email }],
+  workspaceBrand?: WorkspaceBrand,
 ) {
   const { start, end } = meetingTimes(booking);
   const dateTime = (date: Date) => date.toISOString().replace(/Z$/, "");
   return {
-    subject: booking.meeting_title || booking.link_title || "Meeting",
-    body: { contentType: "text", content: meetingDescription(booking) },
+    subject: calendarEventParts(booking).title,
+    body: {
+      contentType: "HTML",
+      content: calendarEventDescriptionHtml(booking, attendees, workspaceBrand),
+    },
     start: { dateTime: dateTime(start), timeZone: "UTC" },
     end: { dateTime: dateTime(end), timeZone: "UTC" },
     ...(create

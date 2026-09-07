@@ -278,6 +278,7 @@ describe("emailContent", () => {
         meeting_sent_at: null,
         assigned_to: "owner@example.com",
         booking_link_id: "link-1",
+        link_title: "Product review",
         created_at: "2026-08-04T00:00:00.000Z",
         updated_at: "2026-08-04T00:00:00.000Z",
       },
@@ -287,6 +288,7 @@ describe("emailContent", () => {
     );
     expect(invite).toContain("ORGANIZER;CN=Slotloom:mailto:owner@example.com");
     expect(invite).toContain("BEGIN:VCALENDAR");
+    expect(invite).toContain("SUMMARY:Product review — Taylor");
     expect(invite).toContain("ATTENDEE;RSVP=TRUE:mailto:guest@example.com");
   });
 
@@ -622,27 +624,55 @@ describe("calendar integration security", () => {
       final_starts_at: null,
       duration_minutes: 45,
       link_title: "Product review",
-      meeting_title: "Taylor product review",
-      meeting_notes: "Bring the project brief.",
+      meeting_title: "Roadmap planning",
+      meeting_notes:
+        "Bring the <project> brief.\nNo scripts: <script>alert(1)</script>",
     } as never;
     const attendees = [
       { name: "Taylor", email: "taylor@example.com" },
       { name: "Jordan", email: "jordan@example.com" },
     ];
-    const google = googleEventBody(booking, true, attendees);
-    const microsoft = microsoftEventBody(booking, true, attendees);
+    const brand = {
+      name: "Northstar",
+      tagline: "Make every conversation count.",
+      logo: "/logo.svg",
+      logoDark: "/logo-dark.svg",
+      favicon: "/mark.svg",
+      primaryColor: "#123456",
+      accentColor: "#654321",
+    };
+    const google = googleEventBody(booking, true, attendees, brand);
+    const microsoft = microsoftEventBody(booking, true, attendees, brand);
 
     expect(google.conferenceData.createRequest.conferenceSolutionKey.type).toBe(
       "hangoutsMeet",
     );
-    expect(google.summary).toBe("Taylor product review");
+    expect(google.summary).toBe("Product review: Roadmap planning — Taylor");
     expect(google.attendees).toEqual([
       { email: "taylor@example.com" },
       { email: "jordan@example.com" },
     ]);
+    expect(google.description).toContain("Northstar · Confirmed meeting");
+    expect(google.description).toContain("Roadmap planning");
+    expect(google.description).toContain("Jordan");
+    expect(google.description).toContain("&lt;project&gt;");
+    expect(google.description).not.toContain("<script>");
+    expect(google.description).toContain("background-color:#123456");
     expect(microsoft.isOnlineMeeting).toBe(true);
     expect(microsoft.onlineMeetingProvider).toBe("teamsForBusiness");
     expect(microsoft.transactionId).toBe("booking-1");
+    expect(microsoft.subject).toBe("Product review: Roadmap planning — Taylor");
+    expect(microsoft.body.contentType).toBe("HTML");
+    expect(microsoft.body.content).toBe(google.description);
+
+    const withoutTopic = googleEventBody(
+      { ...booking, meeting_title: "Product review" } as never,
+      true,
+      attendees,
+      brand,
+    );
+    expect(withoutTopic.summary).toBe("Product review — Taylor");
+    expect(withoutTopic.summary).not.toContain("Jordan");
   });
 
   it("uses a response override and falls back to an owner connection", async () => {

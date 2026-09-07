@@ -368,20 +368,27 @@ export default function PublicBooking({ slug }: { slug: string }) {
                 {data.link.allowCustomMeetingTitle && (
                   <div className="space-y-2">
                     <Label htmlFor="meeting-title">
-                      Meeting title{" "}
+                      Meeting topic{" "}
                       <span className="font-normal text-muted-foreground">
                         (optional)
                       </span>
                     </Label>
                     <Input
+                      autoComplete="off"
                       id="meeting-title"
                       maxLength={140}
                       name="meetingTitle"
                       value={meetingTitle}
                       onChange={(event) => setMeetingTitle(event.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      This title will appear on the calendar invitation.
+                    <p
+                      aria-live="polite"
+                      className="break-words text-xs text-muted-foreground"
+                    >
+                      Calendar title: {data.link.title}
+                      {meetingTitle.trim()
+                        ? `: ${meetingTitle.trim()}`
+                        : ""} — {name.trim() || "your name"}
                     </p>
                   </div>
                 )}

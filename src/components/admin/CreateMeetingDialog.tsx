@@ -66,7 +66,14 @@ export function CreateMeetingDialog({
         setOptions(result);
         setOrganizerEmail(result.suggestedOrganizer);
         setProvider(result.suggestedProvider);
-        setTitle(result.booking.meetingTitle);
+        const linkTitle = result.booking.linkTitle || "Meeting";
+        setTitle(
+          result.booking.meetingTitle.localeCompare(linkTitle, undefined, {
+            sensitivity: "accent",
+          }) === 0
+            ? ""
+            : result.booking.meetingTitle,
+        );
         setMeetingUrl(result.booking.meetingUrl || "");
         setMeetingNotes(result.booking.meetingNotes || "");
         setAttendees(
@@ -89,6 +96,9 @@ export function CreateMeetingDialog({
   const selectedProvider = organizer?.providers.find(
     (candidate) => candidate.provider === provider,
   );
+  const calendarTitle = options
+    ? `${options.booking.linkTitle || "Meeting"}${title.trim() ? `: ${title.trim()}` : ""} — ${options.booking.name}`
+    : "";
   useEffect(() => {
     if (provider !== "manual" && organizer && !selectedProvider?.available)
       setProvider("manual");
@@ -190,17 +200,26 @@ export function CreateMeetingDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="meeting-title">Meeting title</Label>
+              <Label htmlFor="meeting-title">
+                Meeting topic{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </Label>
               <Input
+                autoComplete="off"
                 id="meeting-title"
                 maxLength={140}
-                required
+                name="meetingTopic"
+                placeholder="Frontend role…"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Visitor suggestions remain editable until you create the
-                meeting.
+              <p
+                aria-live="polite"
+                className="break-words text-xs text-muted-foreground"
+              >
+                Calendar title: {calendarTitle}
               </p>
             </div>
 

@@ -7,6 +7,7 @@ import {
 } from "./secret-crypto";
 import {
   getBooking,
+  getWorkspaceBrand,
   json,
   meetingOwner,
   recordUserActivity,
@@ -734,7 +735,10 @@ async function createExternalMeeting(
   connection: ConnectionRow,
   booking: BookingRow,
 ): Promise<ExternalMeeting> {
-  const attendees = await listMeetingAttendees(env, booking);
+  const [attendees, workspaceBrand] = await Promise.all([
+    listMeetingAttendees(env, booking),
+    getWorkspaceBrand(env),
+  ]);
   if (connection.provider === "google") {
     const eventId = `slotloom${(await sha256(booking.id)).slice(0, 32)}`;
     const response = await providerRequest(
@@ -746,7 +750,7 @@ async function createExternalMeeting(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           id: eventId,
-          ...googleEventBody(booking, true, attendees),
+          ...googleEventBody(booking, true, attendees, workspaceBrand),
         }),
       },
     );
@@ -770,7 +774,9 @@ async function createExternalMeeting(
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(microsoftEventBody(booking, true, attendees)),
+      body: JSON.stringify(
+        microsoftEventBody(booking, true, attendees, workspaceBrand),
+      ),
     },
   );
   const body = await responseObject(response);
@@ -789,6 +795,10 @@ async function updateExternalMeeting(
   connection: ConnectionRow,
   booking: BookingRow,
 ) {
+  const [attendees, workspaceBrand] = await Promise.all([
+    listMeetingAttendees(env, booking),
+    getWorkspaceBrand(env),
+  ]);
   const eventId = booking.meeting_provider_event_id!;
   const url =
     connection.provider === "google"
@@ -799,8 +809,8 @@ async function updateExternalMeeting(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(
       connection.provider === "google"
-        ? googleEventBody(booking, false)
-        : microsoftEventBody(booking, false),
+        ? googleEventBody(booking, false, attendees, workspaceBrand)
+        : microsoftEventBody(booking, false, attendees, workspaceBrand),
     ),
   });
   const body = await responseObject(response);
