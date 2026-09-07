@@ -33,6 +33,46 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type Step = "email" | "slot" | "phone" | "success";
+
+function unavailableBookingCopy(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("expired"))
+    return {
+      label: "Link expired",
+      title: "This booking window has closed",
+      description:
+        "The organizer is no longer accepting responses through this link. Ask them to share a current booking link.",
+      canRetry: false,
+    };
+
+  if (normalized.includes("security configuration"))
+    return {
+      label: "Setup required",
+      title: "Booking is temporarily unavailable",
+      description:
+        "The organizer needs to finish setting up this booking page. Try again later or contact them directly.",
+      canRetry: true,
+    };
+
+  if (normalized.includes("not available"))
+    return {
+      label: "Link unavailable",
+      title: "This booking link is no longer active",
+      description:
+        "The organizer may have paused or replaced this link. Ask them to share an active booking link.",
+      canRetry: false,
+    };
+
+  return {
+    label: "Couldn’t load page",
+    title: "We couldn’t load this booking page",
+    description:
+      "Check your connection and try again. If the problem continues, ask the organizer for a current booking link.",
+    canRetry: true,
+  };
+}
+
 export default function PublicBooking({ slug }: { slug: string }) {
   const [data, setData] = useState<{
     link: BookingLink;
@@ -144,24 +184,72 @@ export default function PublicBooking({ slug }: { slug: string }) {
         </div>
       </main>
     );
-  if (!data)
+  if (!data) {
+    const unavailable = unavailableBookingCopy(error);
     return (
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex min-h-svh items-center justify-center p-4"
+        className="relative flex min-h-svh items-center justify-center overflow-hidden bg-muted/30 px-4 py-10 sm:px-6"
       >
-        <Card className="max-w-md">
-          <CardHeader>
-            <CalendarDays className="mb-4 size-6" aria-hidden="true" />
-            <h1 className="text-xl font-semibold">This link is unavailable</h1>
-            <p className="text-sm text-muted-foreground">
-              {error || "Ask the organizer for a new link."}
-            </p>
-          </CardHeader>
-        </Card>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,color-mix(in_oklch,var(--border)_55%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklch,var(--border)_55%,transparent)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_74%)]"
+        />
+        <div className="relative w-full max-w-lg">
+          <a
+            href="/"
+            aria-label={`${brand.name} home`}
+            className="inline-flex rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <BrandLogo className="max-w-44" />
+          </a>
+          <Card className="mt-6 w-full gap-0 overflow-hidden border-border/80 py-0 shadow-[0_1px_2px_rgba(15,23,42,.06),0_24px_70px_rgba(15,23,42,.13)]">
+            <CardHeader className="gap-0 border-b bg-background/92 p-6 sm:p-8">
+              <div className="flex items-center justify-between gap-4">
+                <span className="flex size-11 items-center justify-center rounded-xl border bg-muted/40 text-muted-foreground shadow-sm">
+                  <CalendarDays className="size-5" aria-hidden="true" />
+                </span>
+                <span className="rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+                  {unavailable.label}
+                </span>
+              </div>
+              <h1 className="mt-8 max-w-md text-3xl font-semibold tracking-tight sm:text-4xl">
+                {unavailable.title}
+              </h1>
+              <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
+                {unavailable.description}
+              </p>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 bg-muted/20 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+              <Button asChild size="lg" className="min-h-11 px-4">
+                <a href="/">
+                  <ArrowLeft aria-hidden="true" />
+                  Return home
+                </a>
+              </Button>
+              {unavailable.canRetry ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="min-h-11 px-4"
+                  onClick={() => window.location.reload()}
+                >
+                  Try again
+                </Button>
+              ) : (
+                <p className="max-w-52 text-sm leading-5 text-muted-foreground sm:text-right">
+                  Need to schedule? Contact the organizer for a new link.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <PublicFooter className="mt-6 border-t px-2 pt-5" />
+        </div>
       </main>
     );
+  }
   const progress = step === "email" ? 1 : step === "slot" ? 2 : 3;
   return (
     <main
