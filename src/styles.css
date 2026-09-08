@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "react-phone-number-input/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -174,6 +175,60 @@
 }
 
 @layer components {
+  .slotloom-phone-input {
+    --PhoneInput-color--focus: var(--ring);
+    --PhoneInputCountryFlag-height: 1.05rem;
+    display: flex;
+    min-height: 2.5rem;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--foreground);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .slotloom-phone-input:focus-within {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 18%, transparent);
+  }
+  .slotloom-phone-input--invalid {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 3px
+      color-mix(in oklch, var(--destructive) 14%, transparent);
+  }
+  .slotloom-phone-input .PhoneInputCountry {
+    margin-right: 0;
+    border-right: 1px solid var(--border);
+    background: color-mix(in oklch, var(--muted) 45%, transparent);
+    padding: 0 0.75rem;
+  }
+  .slotloom-phone-input .PhoneInputCountrySelect:focus-visible {
+    outline: none;
+  }
+  .slotloom-phone-input .PhoneInputCountrySelectArrow {
+    margin-left: 0.5rem;
+  }
+  .slotloom-phone-input .PhoneInputCountryIcon--border {
+    box-shadow: 0 0 0 1px
+      color-mix(in oklch, var(--foreground) 16%, transparent);
+  }
+  .slotloom-phone-input .PhoneInputInput {
+    height: 2.5rem;
+    border: 0;
+    background: transparent;
+    padding: 0 0.75rem;
+    color: var(--foreground);
+    font: inherit;
+    font-size: 0.875rem;
+    outline: none;
+  }
+  .slotloom-phone-input .PhoneInputInput::placeholder {
+    color: var(--muted-foreground);
+  }
   .skip-link {
     position: fixed;
     top: 0.75rem;

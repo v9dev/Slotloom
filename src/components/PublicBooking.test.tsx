@@ -3,11 +3,18 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/api";
+import { countryFromLocales } from "@/lib/phone-country";
 import PublicBooking from "./PublicBooking";
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+describe("country defaults", () => {
+  it("derives a supported phone country from browser locales", () => {
+    expect(countryFromLocales(["not-a-locale", "en-IN"])).toBe("IN");
+  });
 });
 
 describe("PublicBooking unavailable state", () => {
@@ -76,6 +83,7 @@ describe("PublicBooking confirmation", () => {
       },
       slots: [{ startsAt, label: "9:00 AM" }],
       meetingProvider: "google",
+      visitorCountry: "US",
       turnstileSiteKey: null,
     });
     const createBooking = vi.spyOn(api, "createBooking").mockResolvedValue({
@@ -118,6 +126,9 @@ describe("PublicBooking confirmation", () => {
     fireEvent.click(screen.getByRole("button", { name: /Review booking/ }));
 
     await screen.findByRole("heading", { name: "Almost done" });
+    fireEvent.change(screen.getByLabelText(/Phone number/), {
+      target: { value: "4155552671" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Book meeting" }));
 
     await screen.findByRole("heading", { name: "Meeting booked" });
@@ -132,6 +143,7 @@ describe("PublicBooking confirmation", () => {
       expect.objectContaining({
         name: "Taylor Visitor",
         email: "taylor@example.com",
+        phone: "+14155552671",
         meetingTitle: "Frontend role",
         startsAt,
       }),

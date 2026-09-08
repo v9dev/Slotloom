@@ -12,6 +12,11 @@ import {
   Video,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import InternationalPhoneInput, {
+  isPossiblePhoneNumber,
+} from "react-phone-number-input";
+import flags from "react-phone-number-input/flags";
+import phoneLabels from "react-phone-number-input/locale/en";
 import { api } from "@/api";
 import type { BookingLink, CalendarProvider, Slot } from "@/types";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -34,8 +39,14 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { countryFromLocales, supportedPhoneCountry } from "@/lib/phone-country";
 
 type Step = "email" | "slot" | "phone" | "success";
+const internationalPhoneLabels = {
+  ...phoneLabels,
+  country: "Phone country",
+  phone: "Phone number",
+};
 
 function providerCopy(provider: CalendarProvider) {
   return provider === "google"
@@ -92,6 +103,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
     link: BookingLink;
     slots: Slot[];
     meetingProvider: CalendarProvider;
+    visitorCountry: string | null;
     turnstileSiteKey: string | null;
   }>();
   const [bookingResult, setBookingResult] =
@@ -100,6 +112,7 @@ export default function PublicBooking({ slug }: { slug: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [meetingTitle, setMeetingTitle] = useState("");
   const [attendees, setAttendees] = useState<AttendeeDraft[]>([]);
   const [selected, setSelected] = useState("");
@@ -110,6 +123,12 @@ export default function PublicBooking({ slug }: { slug: string }) {
   const [visitorTimeZone, setVisitorTimeZone] = useState(browserTimeZone());
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileAttempt, setTurnstileAttempt] = useState(0);
+  const localeCountry = useMemo(
+    () => countryFromLocales(navigator.languages || [navigator.language]),
+    [],
+  );
+  const defaultCountry =
+    supportedPhoneCountry(data?.visitorCountry) || localeCountry;
   useEffect(() => {
     api
       .publicLink(slug)
@@ -152,7 +171,12 @@ export default function PublicBooking({ slug }: { slug: string }) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!selected) return setError("Choose an available time.");
+    if (phone && !isPossiblePhoneNumber(phone)) {
+      setPhoneError("Enter a complete phone number, including country code.");
+      return;
+    }
     setSending(true);
+    setPhoneError("");
     setError("");
     try {
       const result = await api.createBooking(slug, {
@@ -527,15 +551,37 @@ export default function PublicBooking({ slug }: { slug: string }) {
                       (optional)
                     </span>
                   </Label>
-                  <Input
+                  <InternationalPhoneInput
+                    aria-describedby="phone-help"
+                    aria-invalid={phoneError ? true : undefined}
+                    className={`slotloom-phone-input${phoneError ? " slotloom-phone-input--invalid" : ""}`}
+                    countryCallingCodeEditable={false}
+                    defaultCountry={defaultCountry}
+                    flags={flags}
                     id="phone"
-                    type="tel"
+                    international
                     autoComplete="tel"
-                    inputMode="tel"
+                    labels={internationalPhoneLabels}
+                    limitMaxLength
                     name="phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    value={phone || undefined}
+                    onChange={(value) => {
+                      setPhone(value || "");
+                      setPhoneError("");
+                    }}
                   />
+                  <p
+                    className={
+                      phoneError
+                        ? "text-xs text-destructive"
+                        : "text-xs text-muted-foreground"
+                    }
+                    id="phone-help"
+                    role={phoneError ? "alert" : undefined}
+                  >
+                    {phoneError ||
+                      "Choose your country, then enter the number. The country code is included automatically."}
+                  </p>
                 </div>
                 {data.turnstileSiteKey && (
                   <TurnstileWidget

@@ -50,7 +50,7 @@ createRoot(document.getElementById("root")!).render(
             className="fixed z-50 rounded-full border bg-background/95 shadow-sm backdrop-blur"
             style={{
               right: "max(1rem, env(safe-area-inset-right))",
-              bottom: "max(1rem, env(safe-area-inset-bottom))",
+              top: "max(1rem, env(safe-area-inset-top))",
             }}
           >
             <ThemeToggle />

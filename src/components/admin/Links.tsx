@@ -558,8 +558,10 @@ export function LinkRemovalActions({
             <AlertDialogDescription>
               This permanently deletes the link and all {link.responseCount}{" "}
               connected meetings, email history, feedback, analytics, and
-              activity. This action cannot be undone. Archive the link instead
-              if you need to retain its history.
+              activity from Slotloom. Existing Google or Microsoft calendar
+              events are not changed, so cancel active meetings first if needed.
+              This action cannot be undone. Archive the link instead if you need
+              to retain its history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

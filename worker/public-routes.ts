@@ -156,6 +156,7 @@ export async function publicLink(request: Request, env: Env, slug: string) {
     return json({
       link: normalizeLink(link, rules),
       meetingProvider: instantBooking.provider,
+      visitorCountry: safeText(cf?.country, 2).toUpperCase() || null,
       turnstileSiteKey: turnstile.enabled ? turnstile.siteKey : null,
       slots: slotsForSchedule(link, rules)
         .filter((slot) => !unavailable.has(slot.startsAt))
@@ -201,6 +202,11 @@ export async function publicLink(request: Request, env: Env, slug: string) {
   if (name.length < 2) return json({ error: "Please enter your name." }, 400);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return json({ error: "Please enter a valid email." }, 400);
+  if (phone && !/^\+[1-9]\d{6,14}$/.test(phone))
+    return json(
+      { error: "Please enter a complete phone number with its country code." },
+      400,
+    );
   if (
     !slotsForSchedule(link, rules).some((slot) => slot.startsAt === startsAt) ||
     unavailable.has(startsAt)

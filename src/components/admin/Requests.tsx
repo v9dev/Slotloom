@@ -1,4 +1,4 @@
-import { ChevronRight, Download, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/api";
 import type {
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RequestDialog } from "./RequestDialog";
+import { ExportMenu } from "./ExportMenu";
 
 import { Empty, Loading, Shell, StatusBadge, fmt, labels } from "./shared";
 export function Requests({
@@ -109,20 +110,6 @@ export function Requests({
     setBookings(refreshed.bookings);
     setPagination(refreshed.pagination);
   }
-  async function exportCsv() {
-    const blob = await api.exportBookings({
-      q: query,
-      status: status === "all" ? "" : status,
-      link: linkFilter === "all" ? "" : linkFilter,
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `meetings-${new Date().toISOString().slice(0, 10)}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    toast.success("CSV export downloaded");
-  }
   const rows = bookings;
   const selectedLink = links.find((link) => link.id === linkFilter);
   return (
@@ -136,10 +123,14 @@ export function Requests({
           : "Manage booked meetings, coordinate changes, and track outcomes."
       }
       action={
-        <Button variant="outline" onClick={exportCsv}>
-          <Download aria-hidden="true" />
-          Export CSV
-        </Button>
+        <ExportMenu
+          canExportWorkspace={canAssign}
+          filters={{
+            q: query,
+            status: status === "all" ? "" : status,
+            link: linkFilter === "all" ? "" : linkFilter,
+          }}
+        />
       }
     >
       <Card>
@@ -451,6 +442,23 @@ export function Requests({
                 totalPages: Math.max(1, Math.ceil(total / current.pageSize)),
               };
             });
+        }}
+        onDeleted={(deletedId) => {
+          setBookings((current) =>
+            current.filter((booking) => booking.id !== deletedId),
+          );
+          setSelectedIds((current) =>
+            current.filter((bookingId) => bookingId !== deletedId),
+          );
+          setPagination((current) => {
+            const total = Math.max(0, current.total - 1);
+            return {
+              ...current,
+              total,
+              totalPages: Math.max(1, Math.ceil(total / current.pageSize)),
+            };
+          });
+          setSelected(null);
         }}
       />
     </Shell>

@@ -54,7 +54,8 @@ import {
 import { Field, StatusBadge, fmt, labels } from "./shared";
 
 type RequestTab = "meeting" | "visitor" | "emails" | "activity";
-type RequestAction = "save" | "reminder" | "reschedule" | "cancel" | "erase";
+type RequestAction =
+  "save" | "reminder" | "reschedule" | "cancel" | "erase" | "delete";
 type RequestDraft = {
   status: WorkflowStatus;
   assignedTo: string;
@@ -108,12 +109,14 @@ export function RequestDialog({
   canEdit,
   close,
   onUpdated,
+  onDeleted,
 }: {
   id: string | null;
   canAssign: boolean;
   canEdit: boolean;
   close: () => void;
   onUpdated: (booking: Booking) => void;
+  onDeleted: (bookingId: string) => void;
 }) {
   const [detail, setDetail] = useState<BookingDetail>();
   const [draft, setDraft] = useState<RequestDraft>();
@@ -252,7 +255,7 @@ export function RequestDialog({
 
   async function send(
     template: "reminder" | "reschedule" | "cancelled",
-    action: Exclude<RequestAction, "save" | "erase">,
+    action: Exclude<RequestAction, "save" | "erase" | "delete">,
   ) {
     if (!currentDetail || actionBlocked) return;
     setPendingAction(action);
@@ -297,6 +300,26 @@ export function RequestDialog({
         cause instanceof Error
           ? cause.message
           : "Could not erase visitor data. Try again.",
+      );
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function deleteResponse() {
+    if (!currentDetail || isBusy) return;
+    setPendingAction("delete");
+    setError("");
+    try {
+      await api.deleteBooking(bookingId);
+      onDeleted(bookingId);
+      close();
+      toast.success("Meeting response permanently deleted");
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not delete this response. Try again.",
       );
     } finally {
       setPendingAction(null);
@@ -739,7 +762,9 @@ export function RequestDialog({
                     detail={currentDetail}
                     isBusy={isBusy}
                     isErasing={pendingAction === "erase"}
+                    isDeleting={pendingAction === "delete"}
                     onErase={erasePersonalData}
+                    onDelete={deleteResponse}
                   />
                   <RequestEmailsPanel detail={currentDetail} />
                   <RequestActivityPanel detail={currentDetail} />

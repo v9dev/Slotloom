@@ -182,14 +182,14 @@ function bookingEnvironment() {
   };
 }
 
-function bookingRequest() {
+function bookingRequest(phone = "") {
   return new Request("https://meet.example.com/api/public/links/interview", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       name: "Taylor Visitor",
       email: "taylor@example.com",
-      phone: "",
+      phone,
       startsAt,
       timeZone: "UTC",
       turnstileToken: "",
@@ -221,7 +221,7 @@ describe("instant public booking", () => {
     });
 
     const response = await publicLink(
-      bookingRequest(),
+      bookingRequest("+14155552671"),
       state.env as never,
       "interview",
     );
@@ -239,11 +239,29 @@ describe("instant public booking", () => {
       workflow_status: "confirmed",
       assigned_to: "owner@example.com",
       meeting_title: "Product interview",
+      phone: "+14155552671",
       meeting_sent_at: expect.any(String),
     });
     expect(
       state.executed.some(({ query }) => query.includes("email_events")),
     ).toBe(false);
+  });
+
+  it("rejects phone numbers that omit a valid international country code", async () => {
+    const state = bookingEnvironment();
+
+    const response = await publicLink(
+      bookingRequest("415-555-2671"),
+      state.env as never,
+      "interview",
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Please enter a complete phone number with its country code.",
+    });
+    expect(calendar.ensureProviderMeeting).not.toHaveBeenCalled();
+    expect(state.booking).toBeNull();
   });
 
   it("releases the slot when the provider creates no external event", async () => {

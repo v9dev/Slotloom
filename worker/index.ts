@@ -4,7 +4,6 @@ import {
   configuredEmailContent,
   escapeHtml,
   formatMeetingTime,
-  getBooking,
   getWorkspaceBrand,
   getLink,
   getRules,
@@ -42,6 +41,7 @@ import { bookingAdminRoute } from "./booking-admin";
 import { meetingAdminRoute } from "./meeting-admin";
 import { personalIntegrationRoute } from "./personal-integrations";
 import { deliverEmail, emailDeliveryAdminRoute } from "./email-delivery";
+import { dataAdminRoute, linkDeletionStatements } from "./data-admin";
 export async function adminRoutes(
   request: Request,
   env: Env,
@@ -405,6 +405,8 @@ export async function adminRoutes(
     if (!can(user.role, action))
       return json({ error: "Your role does not allow this action." }, 403);
   }
+  const dataResponse = await dataAdminRoute(request, env, path, url, user);
+  if (dataResponse) return dataResponse;
   if (path === "/api/admin/dashboard" && request.method === "GET") {
     const stats = await env.DB.prepare(
       `SELECT
@@ -574,34 +576,7 @@ export async function adminRoutes(
       }
       if (mode !== "delete")
         return json({ error: "Choose archive or permanent deletion." }, 400);
-      await env.DB.batch([
-        env.DB.prepare(
-          "DELETE FROM notifications WHERE action_url IN (SELECT '/admin/requests?open=' || id FROM bookings WHERE booking_link_id=?)",
-        ).bind(id),
-        env.DB.prepare(
-          "DELETE FROM booking_manage_tokens WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?)",
-        ).bind(id),
-        env.DB.prepare(
-          "DELETE FROM meeting_feedback WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?)",
-        ).bind(id),
-        env.DB.prepare(
-          "DELETE FROM email_events WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?)",
-        ).bind(id),
-        env.DB.prepare(
-          "DELETE FROM activity_events WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?) OR booking_link_id=?",
-        ).bind(id, id),
-        env.DB.prepare(
-          "DELETE FROM booking_attendees WHERE booking_id IN (SELECT id FROM bookings WHERE booking_link_id=?)",
-        ).bind(id),
-        env.DB.prepare("DELETE FROM bookings WHERE booking_link_id=?").bind(id),
-        env.DB.prepare(
-          "DELETE FROM link_page_views WHERE booking_link_id=?",
-        ).bind(id),
-        env.DB.prepare(
-          "DELETE FROM availability_rules WHERE booking_link_id=?",
-        ).bind(id),
-        env.DB.prepare("DELETE FROM booking_links WHERE id=?").bind(id),
-      ]);
+      await env.DB.batch(linkDeletionStatements(env, id));
       await recordUserActivity(
         env,
         actor,
@@ -740,118 +715,6 @@ export async function adminRoutes(
       `Updated ${updated} meeting requests`,
     );
     return json({ success: true, updated });
-  }
-  if (path === "/api/admin/bookings/export" && request.method === "GET") {
-    const status = safeText(url.searchParams.get("status"), 30);
-    const linkId = safeText(url.searchParams.get("link"), 50);
-    const search = safeText(url.searchParams.get("q"), 120);
-    const clauses: string[] = [];
-    const values: string[] = [];
-    if (status) {
-      clauses.push("b.workflow_status = ?");
-      values.push(status);
-    }
-    if (linkId) {
-      clauses.push("b.booking_link_id = ?");
-      values.push(linkId);
-    }
-    if (search) {
-      clauses.push(
-        "(b.email LIKE ? OR b.name LIKE ? OR b.phone LIKE ? OR l.title LIKE ?)",
-      );
-      const pattern = `%${search}%`;
-      values.push(pattern, pattern, pattern, pattern);
-    }
-    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const result = await env.DB.prepare(
-      `SELECT b.name,b.email,b.phone,b.starts_at,b.time_zone,b.workflow_status,b.assigned_to,l.title AS link_title,b.created_at
-       FROM bookings b LEFT JOIN booking_links l ON l.id=b.booking_link_id ${where}
-       ORDER BY b.created_at DESC LIMIT 10000`,
-    )
-      .bind(...values)
-      .all<Record<string, unknown>>();
-    const columns = [
-      "name",
-      "email",
-      "phone",
-      "starts_at",
-      "time_zone",
-      "workflow_status",
-      "assigned_to",
-      "link_title",
-      "created_at",
-    ];
-    const cell = (value: unknown) =>
-      `"${String(value ?? "").replaceAll('"', '""')}"`;
-    const csv = [
-      columns.join(","),
-      ...result.results.map((row) =>
-        columns.map((column) => cell(row[column])).join(","),
-      ),
-    ].join("\n");
-    return new Response(csv, {
-      headers: {
-        "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="meeting-requests-${new Date().toISOString().slice(0, 10)}.csv"`,
-      },
-    });
-  }
-  const personalDataMatch = path.match(
-    /^\/api\/admin\/bookings\/([^/]+)\/personal-data$/,
-  );
-  if (personalDataMatch && request.method === "DELETE") {
-    const id = decodeURIComponent(personalDataMatch[1]);
-    const booking = await getBooking(env, id);
-    if (!booking) return json({ error: "Meeting request not found." }, 404);
-    if (
-      user.role === "member" &&
-      booking.assigned_to &&
-      booking.assigned_to.toLowerCase() !== user.email.toLowerCase()
-    )
-      return json(
-        { error: "This request is assigned to another organizer." },
-        403,
-      );
-    const now = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare("DELETE FROM booking_attendees WHERE booking_id=?").bind(
-        id,
-      ),
-      env.DB.prepare(
-        `UPDATE bookings SET name='Deleted visitor',email=?,phone=NULL,company=NULL,message=NULL,
-         device_type=NULL,user_agent=NULL,browser_language=NULL,referrer=NULL,country=NULL,region=NULL,city=NULL,
-         admin_note=NULL,meeting_notes=NULL,meeting_title=NULL,updated_at=? WHERE id=?`,
-      ).bind(`deleted+${id}@invalid.local`, now, id),
-      env.DB.prepare(
-        "UPDATE email_events SET recipient='redacted@example.invalid',error=NULL WHERE booking_id=?",
-      ).bind(id),
-      env.DB.prepare(
-        "DELETE FROM booking_manage_tokens WHERE booking_id=?",
-      ).bind(id),
-      env.DB.prepare(
-        "UPDATE meeting_feedback SET message=NULL,updated_at=? WHERE booking_id=?",
-      ).bind(now, id),
-      env.DB.prepare(
-        "UPDATE activity_events SET summary='Visitor activity retained after personal data erasure',metadata=NULL WHERE booking_id=?",
-      ).bind(id),
-      env.DB.prepare("DELETE FROM notifications WHERE action_url=?").bind(
-        `/admin/requests?open=${id}`,
-      ),
-    ]);
-    await recordActivity(env, {
-      bookingId: id,
-      linkId: booking.booking_link_id,
-      actor,
-      type: "visitor.personal_data_erased",
-      summary: "Erased visitor personal data",
-    });
-    await recordUserActivity(
-      env,
-      actor,
-      "visitor.personal_data_erased",
-      `Erased personal data for request ${id}`,
-    );
-    return json({ success: true });
   }
   if (path === "/api/admin/bookings" && request.method === "GET") {
     const status = safeText(url.searchParams.get("status"), 30);

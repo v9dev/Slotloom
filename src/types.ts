@@ -146,6 +146,21 @@ export type BookingDetail = {
   feedback: MeetingFeedback | null;
 };
 
+export type WorkspaceExportValue = string | number | boolean | null;
+export type WorkspaceExportRow = Record<string, WorkspaceExportValue>;
+export type WorkspaceExportData = {
+  generatedAt: string;
+  meetings: WorkspaceExportRow[];
+  attendees: WorkspaceExportRow[];
+  links: WorkspaceExportRow[];
+  availability: WorkspaceExportRow[];
+  feedback: WorkspaceExportRow[];
+  emails: WorkspaceExportRow[];
+  activity: WorkspaceExportRow[];
+  pageViews: WorkspaceExportRow[];
+  team: WorkspaceExportRow[];
+};
+
 export type MeetingAttendee = {
   name: string;
   email: string;

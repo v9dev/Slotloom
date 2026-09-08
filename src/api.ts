@@ -23,6 +23,7 @@ import type {
   MeetingOptions,
   CreateMeetingInput,
   CreateMeetingResult,
+  WorkspaceExportData,
 } from "./types";
 
 type ApiError = { error?: string };
@@ -73,6 +74,7 @@ export const api = {
       link: BookingLink;
       slots: Slot[];
       meetingProvider: CalendarProvider;
+      visitorCountry: string | null;
       turnstileSiteKey: string | null;
     }>(`/api/public/links/${encodeURIComponent(slug)}`),
   createBooking: (
@@ -241,6 +243,12 @@ export const api = {
     request<{ success: boolean }>(`/api/admin/bookings/${id}/personal-data`, {
       method: "DELETE",
     }),
+  deleteBooking: (id: string) =>
+    request<{ deleted: boolean }>(`/api/admin/bookings/${id}?mode=delete`, {
+      method: "DELETE",
+    }),
+  workspaceExport: () =>
+    request<WorkspaceExportData>("/api/admin/export/workspace"),
   templates: () =>
     request<{ templates: EmailTemplate[] }>("/api/admin/templates"),
   previewTemplate: (payload: {

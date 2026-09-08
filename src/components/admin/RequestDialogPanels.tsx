@@ -1,4 +1,4 @@
-import { Mail, Trash2 } from "lucide-react";
+import { Mail, ShieldCheck, Trash2 } from "lucide-react";
 import type { BookingDetail } from "@/types";
 import {
   AlertDialog,
@@ -22,15 +22,21 @@ export function RequestVisitorPanel({
   canEdit,
   isBusy,
   isErasing,
+  isDeleting,
   onErase,
+  onDelete,
 }: {
   detail: BookingDetail;
   bookingId: string;
   canEdit: boolean;
   isBusy: boolean;
   isErasing: boolean;
+  isDeleting: boolean;
   onErase: () => void;
+  onDelete: () => void;
 }) {
+  const personalDataErased =
+    detail.booking.email === `deleted+${bookingId}@invalid.local`;
   return (
     <TabsContent value="visitor">
       {detail.feedback && (
@@ -80,40 +86,89 @@ export function RequestVisitorPanel({
           </div>
         </div>
       )}
-      {canEdit &&
-        detail.booking.email !== `deleted+${bookingId}@invalid.local` && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="destructive"
-                className="mt-4"
-                disabled={isBusy}
-              >
-                <Trash2 aria-hidden="true" />
-                Erase visitor data
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Erase personal data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This permanently removes the visitor’s identity, contact
-                  details, additional attendee list, stored meeting title,
-                  feedback text, device information, notes, notifications, and
-                  self-service access. Anonymous meeting statistics are
-                  retained. This cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep data</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={onErase}>
-                  {isErasing ? "Erasing…" : "Erase permanently"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+      {canEdit && (
+        <section
+          aria-labelledby="request-data-controls"
+          className="mt-5 rounded-xl border border-destructive/20 bg-destructive/[.025] p-4"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-destructive/15 bg-background text-destructive">
+              <ShieldCheck className="size-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h3 id="request-data-controls" className="text-sm font-medium">
+                Data controls
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Anonymize this meeting for reporting, or remove the complete
+                response from Slotloom.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            {!personalDataErased && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="outline" disabled={isBusy}>
+                    <ShieldCheck aria-hidden="true" />
+                    Erase personal data
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Erase personal data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This permanently removes the visitor’s identity, contact
+                      details, attendee list, stored meeting title, feedback
+                      text, device information, notes, notifications, and
+                      self-service access. Anonymous meeting statistics remain.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep data</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" onClick={onErase}>
+                      {isErasing ? "Erasing…" : "Erase personal data"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" disabled={isBusy}>
+                  <Trash2 aria-hidden="true" />
+                  Delete response
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this response?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently removes the meeting response, visitor and
+                    attendee data, notes, email history, feedback, activity, and
+                    self-service access. The booking link stays available. An
+                    existing Google or Microsoft calendar event is not changed,
+                    so cancel it first if needed. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep response</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={onDelete}>
+                    {isDeleting ? "Deleting…" : "Delete permanently"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+          {personalDataErased && (
+            <p className="mt-3 text-xs text-muted-foreground" role="status">
+              Personal data has already been erased; anonymous meeting data is
+              still retained.
+            </p>
+          )}
+        </section>
+      )}
     </TabsContent>
   );
 }
