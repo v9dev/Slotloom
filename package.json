@@ -65,7 +65,7 @@
     "@cloudflare/workers-types": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.4.1",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "jsdom": "latest",
